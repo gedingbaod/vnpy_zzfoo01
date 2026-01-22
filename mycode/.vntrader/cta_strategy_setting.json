@@ -1,0 +1,10 @@
+{
+    "agdouble": {
+        "class_name": "DoubleMaStrategy",
+        "vt_symbol": "ag2604.SHFE",
+        "setting": {
+            "fast_window": 5,
+            "slow_window": 10
+        }
+    }
+}

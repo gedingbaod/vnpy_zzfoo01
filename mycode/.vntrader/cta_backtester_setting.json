@@ -1,0 +1,11 @@
+{
+    "class_name": "DoubleMaStrategy",
+    "vt_symbol": "lc2601.GFEX",
+    "interval": "1h",
+    "start": "2025-09-01",
+    "rate": 2.5e-05,
+    "slippage": 0.2,
+    "size": 300.0,
+    "pricetick": 0.2,
+    "capital": 100000.0
+}
