@@ -1,0 +1,72 @@
+{
+  "host": {
+    "cpp": {
+      "id": "msvc",
+      "exelist": [
+        "cl"
+      ],
+      "linker_exelist": [
+        "link"
+      ],
+      "file_suffixes": [
+        "cpp",
+        "cppm",
+        "cc",
+        "cp",
+        "cxx",
+        "c++",
+        "hh",
+        "hp",
+        "hpp",
+        "ipp",
+        "hxx",
+        "h++",
+        "ino",
+        "ixx",
+        "CPP",
+        "C",
+        "HPP",
+        "H"
+      ],
+      "default_suffix": "cpp",
+      "version": "19.44.35217",
+      "full_version": "\u7528\u4e8e x64 \u7684 Microsoft (R) C/C++ \u4f18\u5316\u7f16\u8bd1\u5668 19.44.35217 \u7248",
+      "linker_id": "link"
+    }
+  },
+  "build": {
+    "cpp": {
+      "id": "msvc",
+      "exelist": [
+        "cl"
+      ],
+      "linker_exelist": [
+        "link"
+      ],
+      "file_suffixes": [
+        "cpp",
+        "cppm",
+        "cc",
+        "cp",
+        "cxx",
+        "c++",
+        "hh",
+        "hp",
+        "hpp",
+        "ipp",
+        "hxx",
+        "h++",
+        "ino",
+        "ixx",
+        "CPP",
+        "C",
+        "HPP",
+        "H"
+      ],
+      "default_suffix": "cpp",
+      "version": "19.44.35217",
+      "full_version": "\u7528\u4e8e x64 \u7684 Microsoft (R) C/C++ \u4f18\u5316\u7f16\u8bd1\u5668 19.44.35217 \u7248",
+      "linker_id": "link"
+    }
+  }
+}
