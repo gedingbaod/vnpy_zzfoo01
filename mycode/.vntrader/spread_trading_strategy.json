@@ -1,1 +1,16 @@
-{}
+{
+    "ttt": {
+        "class_name": "BasicSpreadStrategy",
+        "spread_name": "ttt",
+        "setting": {
+            "class_name": "BasicSpreadStrategy",
+            "buy_price": 0.0,
+            "sell_price": 0.0,
+            "cover_price": 0.0,
+            "short_price": 0.0,
+            "max_pos": 0.0,
+            "payup": 10,
+            "interval": 5
+        }
+    }
+}

@@ -1,1 +1,22 @@
-{}
+[
+    {
+        "name": "ttt",
+        "leg_settings": [
+            {
+                "variable": "A",
+                "vt_symbol": "IF2603.CFFEX",
+                "trading_direction": 1,
+                "trading_multiplier": 1
+            },
+            {
+                "variable": "B",
+                "vt_symbol": "IF2606.CFFEX",
+                "trading_direction": -1,
+                "trading_multiplier": -1
+            }
+        ],
+        "price_formula": "A-B",
+        "active_symbol": "IF2603.CFFEX",
+        "min_volume": 1.0
+    }
+]
