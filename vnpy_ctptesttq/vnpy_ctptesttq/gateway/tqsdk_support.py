@@ -57,7 +57,7 @@ class TqsdkSupport:
         # 拼装订阅合约
         instrument = f'{exchange}.{symbol}'
 
-
+        # 校验合约是否存在
         from .ctptesttq_gateway import CtptesttqGateway
         tq_gateway: CtptesttqGateway = self.gateway
         # CTP交易服务已登录
@@ -74,8 +74,6 @@ class TqsdkSupport:
             if not contract:
                 print("订阅合约不存在")
                 return
-
-
 
         # 判断是否已订阅，如已订阅，直接返回
         if instrument in self.subscribed:
