@@ -1,7 +1,0 @@
-# ninja log v7
-2	7290	7907687793432771	vnctpmd.cp312-win_amd64.pyd.p/vnpy_ctptesttq_api_vnctp_vnctpmd_vnctpmd.cpp.obj	63b5962f54f0b3ac
-7388	7608	7907687796487746	vnctpmd.cp312-win_amd64.pyd	f71cadc331746959
-19	17138	7907687891862270	vnctptd.cp312-win_amd64.pyd.p/vnpy_ctptesttq_api_vnctp_vnctptd_vnctptd.cpp.obj	8d4e11a6a70674fe
-17223	17395	7907687894578648	vnctptd.cp312-win_amd64.pyd	5971d176deac4996
-2	228	7907812267377031	vnctpmd.cp312-win_amd64.pyd	2ee7ea369f37fb4b
-27	257	7907812267628796	vnctptd.cp312-win_amd64.pyd	1be26697ad5ca3
