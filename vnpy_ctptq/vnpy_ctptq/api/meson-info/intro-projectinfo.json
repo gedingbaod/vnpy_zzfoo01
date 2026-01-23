@@ -1,0 +1,10 @@
+{
+  "version": "6.7.11.2",
+  "descriptive_name": "vnpy_ctptq",
+  "license": [
+    "MIT"
+  ],
+  "license_files": [],
+  "subproject_dir": "subprojects",
+  "subprojects": []
+}

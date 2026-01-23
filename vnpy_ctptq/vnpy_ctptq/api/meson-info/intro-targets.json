@@ -1,0 +1,166 @@
+[
+  {
+    "name": "vnctpmd.cp312-win_amd64",
+    "id": "vnctpmd.cp312-win_amd64.pyd@sha",
+    "type": "shared module",
+    "defined_in": "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptq\\meson.build",
+    "filename": [
+      "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptq\\vnpy_ctptq\\api\\vnctpmd.cp312-win_amd64.pyd"
+    ],
+    "build_by_default": true,
+    "target_sources": [
+      {
+        "language": "cpp",
+        "machine": "host",
+        "compiler": [
+          "cl"
+        ],
+        "parameters": [
+          "-ID:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptq\\vnpy_ctptq\\api\\vnctpmd.cp312-win_amd64.pyd.p",
+          "-ID:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptq\\vnpy_ctptq\\api",
+          "-ID:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptq",
+          "-ID:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptq\\vnpy_ctptq\\api\\include",
+          "-ID:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptq\\vnpy_ctptq\\api\\vnctp",
+          "-ID:\\02.DEV\\miniconda3\\envs\\tqsdk-312\\Lib\\site-packages\\pybind11\\include",
+          "-ID:\\02.DEV\\miniconda3\\envs\\tqsdk-312\\Include",
+          "-DNDEBUG",
+          "/MD",
+          "/nologo",
+          "/showIncludes",
+          "/utf-8",
+          "/Zc:__cplusplus",
+          "/W3",
+          "/EHsc",
+          "/std:c++17",
+          "/permissive-",
+          "/O2",
+          "/Gw",
+          "/MT"
+        ],
+        "sources": [
+          "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptq\\vnpy_ctptq\\api\\vnctp\\vnctpmd\\vnctpmd.cpp"
+        ],
+        "generated_sources": [],
+        "unity_sources": []
+      },
+      {
+        "linker": [
+          "link"
+        ],
+        "parameters": [
+          "/LIBPATH:D:/02.QUANT/FrameWork/vnpy_zzfoo01/vnpy_ctptq/vnpy_ctptq/api/libs",
+          "/release",
+          "/nologo",
+          "/OPT:REF",
+          "/DLL",
+          "/IMPLIB:vnctpmd.cp312-win_amd64.lib",
+          "thostmduserapi_se.lib",
+          "-Wl,-rpath,$ORIGIN",
+          "D:\\02.DEV\\miniconda3\\envs\\tqsdk-312\\libs\\python312.lib",
+          "kernel32.lib",
+          "user32.lib",
+          "gdi32.lib",
+          "winspool.lib",
+          "shell32.lib",
+          "ole32.lib",
+          "oleaut32.lib",
+          "uuid.lib",
+          "comdlg32.lib",
+          "advapi32.lib"
+        ]
+      }
+    ],
+    "extra_files": [],
+    "subproject": null,
+    "dependencies": [
+      "python"
+    ],
+    "depends": [],
+    "installed": true,
+    "install_filename": [
+      "c:\\Lib\\site-packages\\vnpy_ctptq\\api\\vnctpmd.cp312-win_amd64.pyd"
+    ]
+  },
+  {
+    "name": "vnctptd.cp312-win_amd64",
+    "id": "vnctptd.cp312-win_amd64.pyd@sha",
+    "type": "shared module",
+    "defined_in": "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptq\\meson.build",
+    "filename": [
+      "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptq\\vnpy_ctptq\\api\\vnctptd.cp312-win_amd64.pyd"
+    ],
+    "build_by_default": true,
+    "target_sources": [
+      {
+        "language": "cpp",
+        "machine": "host",
+        "compiler": [
+          "cl"
+        ],
+        "parameters": [
+          "-ID:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptq\\vnpy_ctptq\\api\\vnctptd.cp312-win_amd64.pyd.p",
+          "-ID:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptq\\vnpy_ctptq\\api",
+          "-ID:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptq",
+          "-ID:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptq\\vnpy_ctptq\\api\\include",
+          "-ID:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptq\\vnpy_ctptq\\api\\vnctp",
+          "-ID:\\02.DEV\\miniconda3\\envs\\tqsdk-312\\Lib\\site-packages\\pybind11\\include",
+          "-ID:\\02.DEV\\miniconda3\\envs\\tqsdk-312\\Include",
+          "-DNDEBUG",
+          "/MD",
+          "/nologo",
+          "/showIncludes",
+          "/utf-8",
+          "/Zc:__cplusplus",
+          "/W3",
+          "/EHsc",
+          "/std:c++17",
+          "/permissive-",
+          "/O2",
+          "/Gw",
+          "/MT"
+        ],
+        "sources": [
+          "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptq\\vnpy_ctptq\\api\\vnctp\\vnctptd\\vnctptd.cpp"
+        ],
+        "generated_sources": [],
+        "unity_sources": []
+      },
+      {
+        "linker": [
+          "link"
+        ],
+        "parameters": [
+          "/LIBPATH:D:/02.QUANT/FrameWork/vnpy_zzfoo01/vnpy_ctptq/vnpy_ctptq/api/libs",
+          "/release",
+          "/nologo",
+          "/OPT:REF",
+          "/DLL",
+          "/IMPLIB:vnctptd.cp312-win_amd64.lib",
+          "thosttraderapi_se.lib",
+          "-Wl,-rpath,$ORIGIN",
+          "D:\\02.DEV\\miniconda3\\envs\\tqsdk-312\\libs\\python312.lib",
+          "kernel32.lib",
+          "user32.lib",
+          "gdi32.lib",
+          "winspool.lib",
+          "shell32.lib",
+          "ole32.lib",
+          "oleaut32.lib",
+          "uuid.lib",
+          "comdlg32.lib",
+          "advapi32.lib"
+        ]
+      }
+    ],
+    "extra_files": [],
+    "subproject": null,
+    "dependencies": [
+      "python"
+    ],
+    "depends": [],
+    "installed": true,
+    "install_filename": [
+      "c:\\Lib\\site-packages\\vnpy_ctptq\\api\\vnctptd.cp312-win_amd64.pyd"
+    ]
+  }
+]

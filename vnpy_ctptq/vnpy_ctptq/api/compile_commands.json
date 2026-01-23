@@ -1,0 +1,14 @@
+[
+  {
+    "directory": "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptq\\vnpy_ctptq\\api",
+    "command": "\"cl\" \"-Ivnctpmd.cp312-win_amd64.pyd.p\" \"-I.\" \"-I..\\..\" \"-I..\\..\\vnpy_ctptq\\api\\include\" \"-I..\\..\\vnpy_ctptq\\api\\vnctp\" \"-ID:\\02.DEV\\miniconda3\\envs\\tqsdk-312\\Lib\\site-packages\\pybind11\\include\" \"-ID:\\02.DEV\\miniconda3\\envs\\tqsdk-312\\Include\" \"-DNDEBUG\" \"/MD\" \"/nologo\" \"/showIncludes\" \"/utf-8\" \"/Zc:__cplusplus\" \"/W3\" \"/EHsc\" \"/std:c++17\" \"/permissive-\" \"/O2\" \"/Gw\" \"/MT\" \"/Fdvnctpmd.cp312-win_amd64.pyd.p\\vnpy_ctptq_api_vnctp_vnctpmd_vnctpmd.cpp.pdb\" /Fovnctpmd.cp312-win_amd64.pyd.p/vnpy_ctptq_api_vnctp_vnctpmd_vnctpmd.cpp.obj \"/c\" ../../vnpy_ctptq/api/vnctp/vnctpmd/vnctpmd.cpp",
+    "file": "../../vnpy_ctptq/api/vnctp/vnctpmd/vnctpmd.cpp",
+    "output": "vnctpmd.cp312-win_amd64.pyd.p/vnpy_ctptq_api_vnctp_vnctpmd_vnctpmd.cpp.obj"
+  },
+  {
+    "directory": "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptq\\vnpy_ctptq\\api",
+    "command": "\"cl\" \"-Ivnctptd.cp312-win_amd64.pyd.p\" \"-I.\" \"-I..\\..\" \"-I..\\..\\vnpy_ctptq\\api\\include\" \"-I..\\..\\vnpy_ctptq\\api\\vnctp\" \"-ID:\\02.DEV\\miniconda3\\envs\\tqsdk-312\\Lib\\site-packages\\pybind11\\include\" \"-ID:\\02.DEV\\miniconda3\\envs\\tqsdk-312\\Include\" \"-DNDEBUG\" \"/MD\" \"/nologo\" \"/showIncludes\" \"/utf-8\" \"/Zc:__cplusplus\" \"/W3\" \"/EHsc\" \"/std:c++17\" \"/permissive-\" \"/O2\" \"/Gw\" \"/MT\" \"/Fdvnctptd.cp312-win_amd64.pyd.p\\vnpy_ctptq_api_vnctp_vnctptd_vnctptd.cpp.pdb\" /Fovnctptd.cp312-win_amd64.pyd.p/vnpy_ctptq_api_vnctp_vnctptd_vnctptd.cpp.obj \"/c\" ../../vnpy_ctptq/api/vnctp/vnctptd/vnctptd.cpp",
+    "file": "../../vnpy_ctptq/api/vnctp/vnctptd/vnctptd.cpp",
+    "output": "vnctptd.cp312-win_amd64.pyd.p/vnpy_ctptq_api_vnctp_vnctptd_vnctptd.cpp.obj"
+  }
+]

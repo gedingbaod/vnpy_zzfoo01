@@ -1,11 +1,11 @@
-Build started at 2026-01-22T16:54:48.551029
+Build started at 2026-01-22T18:33:38.563249
 Main binary: D:\02.DEV\miniconda3\envs\tqsdk-312\python.exe
-Build Options: -Dbuildtype=release -Db_ndebug=if-release -Db_vscrt=md '--native-file=D:\02.QUANT\FrameWork\vnpy_spread_v1\vnpy_ctptesttq\vnpy_ctptesttq\api\meson-python-native-file.ini'
+Build Options: -Dbuildtype=release -Db_ndebug=if-release -Db_vscrt=md '--native-file=D:\02.QUANT\FrameWork\vnpy_zzfoo01\vnpy_ctptesttq\vnpy_ctptesttq\api\meson-python-native-file.ini'
 Python system: Windows
 The Meson build system
 Version: 1.10.1
-Source dir: D:\02.QUANT\FrameWork\vnpy_spread_v1\vnpy_ctptesttq
-Build dir: D:\02.QUANT\FrameWork\vnpy_spread_v1\vnpy_ctptesttq\vnpy_ctptesttq\api
+Source dir: D:\02.QUANT\FrameWork\vnpy_zzfoo01\vnpy_ctptesttq
+Build dir: D:\02.QUANT\FrameWork\vnpy_zzfoo01\vnpy_ctptesttq\vnpy_ctptesttq\api
 Build type: native build
 Activating VS 17.14.16
 Project name: vnpy_ctptesttq
@@ -119,12 +119,12 @@ Cached run stdout:
 Cached run stderr:
  
 Running compile:
-Working directory:  D:\02.QUANT\FrameWork\vnpy_spread_v1\vnpy_ctptesttq\vnpy_ctptesttq\api\meson-private\tmpxvcmn1m6
+Working directory:  D:\02.QUANT\FrameWork\vnpy_spread_v1\vnpy_ctptesttq\vnpy_ctptesttq\api\meson-private\tmp24xp77cn
 Code:
 int main(void) { return 0; }
 
 -----------
-Command line: `cl D:\02.QUANT\FrameWork\vnpy_spread_v1\vnpy_ctptesttq\vnpy_ctptesttq\api\meson-private\tmpxvcmn1m6\testfile.cpp /FeD:\02.QUANT\FrameWork\vnpy_spread_v1\vnpy_ctptesttq\vnpy_ctptesttq\api\meson-private\tmpxvcmn1m6\output.exe /nologo /showIncludes /utf-8 /Zc:__cplusplus /release /nologo /MD /nologo /showIncludes /utf-8 /Zc:__cplusplus /release /nologo /Od /Oi- D:\02.QUANT\FrameWork\vnpy_spread_v1\vnpy_ctptesttq\vnpy_ctptesttq\api\libs\thostmduserapi_se.lib /link /release /nologo` -> 0
+Command line: `cl D:\02.QUANT\FrameWork\vnpy_spread_v1\vnpy_ctptesttq\vnpy_ctptesttq\api\meson-private\tmp24xp77cn\testfile.cpp /FeD:\02.QUANT\FrameWork\vnpy_spread_v1\vnpy_ctptesttq\vnpy_ctptesttq\api\meson-private\tmp24xp77cn\output.exe /nologo /showIncludes /utf-8 /Zc:__cplusplus /release /nologo /MD /nologo /showIncludes /utf-8 /Zc:__cplusplus /release /nologo /Od /Oi- D:\02.QUANT\FrameWork\vnpy_zzfoo01\vnpy_ctptesttq\vnpy_ctptesttq\api\libs\thostmduserapi_se.lib /link /release /nologo` -> 0
 stdout:
 testfile.cpp
 -----------
@@ -134,12 +134,12 @@ cl: 命令行 warning D9002 :忽略未知选项“/release”
 -----------
 Library thostmduserapi_se found: YES
 Running compile:
-Working directory:  D:\02.QUANT\FrameWork\vnpy_spread_v1\vnpy_ctptesttq\vnpy_ctptesttq\api\meson-private\tmpszfzhp5y
+Working directory:  D:\02.QUANT\FrameWork\vnpy_spread_v1\vnpy_ctptesttq\vnpy_ctptesttq\api\meson-private\tmpsounznnf
 Code:
 int main(void) { return 0; }
 
 -----------
-Command line: `cl D:\02.QUANT\FrameWork\vnpy_spread_v1\vnpy_ctptesttq\vnpy_ctptesttq\api\meson-private\tmpszfzhp5y\testfile.cpp /FeD:\02.QUANT\FrameWork\vnpy_spread_v1\vnpy_ctptesttq\vnpy_ctptesttq\api\meson-private\tmpszfzhp5y\output.exe /nologo /showIncludes /utf-8 /Zc:__cplusplus /release /nologo /MD /nologo /showIncludes /utf-8 /Zc:__cplusplus /release /nologo /Od /Oi- D:\02.QUANT\FrameWork\vnpy_spread_v1\vnpy_ctptesttq\vnpy_ctptesttq\api\libs\thosttraderapi_se.lib /link /release /nologo` -> 0
+Command line: `cl D:\02.QUANT\FrameWork\vnpy_spread_v1\vnpy_ctptesttq\vnpy_ctptesttq\api\meson-private\tmpsounznnf\testfile.cpp /FeD:\02.QUANT\FrameWork\vnpy_spread_v1\vnpy_ctptesttq\vnpy_ctptesttq\api\meson-private\tmpsounznnf\output.exe /nologo /showIncludes /utf-8 /Zc:__cplusplus /release /nologo /MD /nologo /showIncludes /utf-8 /Zc:__cplusplus /release /nologo /Od /Oi- D:\02.QUANT\FrameWork\vnpy_zzfoo01\vnpy_ctptesttq\vnpy_ctptesttq\api\libs\thosttraderapi_se.lib /link /release /nologo` -> 0
 stdout:
 testfile.cpp
 -----------
@@ -153,7 +153,7 @@ Build targets in project: 2
 vnpy_ctptesttq 6.7.2.1
 
   User defined options
-    Native files: D:\02.QUANT\FrameWork\vnpy_spread_v1\vnpy_ctptesttq\vnpy_ctptesttq\api\meson-python-native-file.ini
+    Native files: D:\02.QUANT\FrameWork\vnpy_zzfoo01\vnpy_ctptesttq\vnpy_ctptesttq\api\meson-python-native-file.ini
     b_ndebug    : if-release
     b_vscrt     : md
     buildtype   : release

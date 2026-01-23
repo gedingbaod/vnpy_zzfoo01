@@ -1,27 +1,27 @@
 {
   "targets": {
-    "D:\\02.QUANT\\FrameWork\\vnpy_spread_v1\\vnpy_ctptesttq\\vnpy_ctptesttq\\api\\vnctpmd.cp312-win_amd64.pyd": {
+    "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptesttq\\vnpy_ctptesttq\\api\\vnctpmd.cp312-win_amd64.pyd": {
       "destination": "{py_platlib}\\vnpy_ctptesttq/api\\vnctpmd.cp312-win_amd64.pyd",
       "tag": "runtime",
       "subproject": null,
       "install_rpath": null,
       "build_rpaths": []
     },
-    "D:\\02.QUANT\\FrameWork\\vnpy_spread_v1\\vnpy_ctptesttq\\vnpy_ctptesttq\\api\\vnctpmd.cp312-win_amd64.lib": {
+    "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptesttq\\vnpy_ctptesttq\\api\\vnctpmd.cp312-win_amd64.lib": {
       "destination": "{py_platlib}\\vnpy_ctptesttq/api\\vnctpmd.cp312-win_amd64.lib",
       "tag": "devel",
       "subproject": null,
       "install_rpath": null,
       "build_rpaths": []
     },
-    "D:\\02.QUANT\\FrameWork\\vnpy_spread_v1\\vnpy_ctptesttq\\vnpy_ctptesttq\\api\\vnctptd.cp312-win_amd64.pyd": {
+    "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptesttq\\vnpy_ctptesttq\\api\\vnctptd.cp312-win_amd64.pyd": {
       "destination": "{py_platlib}\\vnpy_ctptesttq/api\\vnctptd.cp312-win_amd64.pyd",
       "tag": "runtime",
       "subproject": null,
       "install_rpath": null,
       "build_rpaths": []
     },
-    "D:\\02.QUANT\\FrameWork\\vnpy_spread_v1\\vnpy_ctptesttq\\vnpy_ctptesttq\\api\\vnctptd.cp312-win_amd64.lib": {
+    "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptesttq\\vnpy_ctptesttq\\api\\vnctptd.cp312-win_amd64.lib": {
       "destination": "{py_platlib}\\vnpy_ctptesttq/api\\vnctptd.cp312-win_amd64.lib",
       "tag": "devel",
       "subproject": null,
@@ -30,44 +30,44 @@
     }
   },
   "python": {
-    "D:\\02.QUANT\\FrameWork\\vnpy_spread_v1\\vnpy_ctptesttq\\vnpy_ctptesttq\\__init__.py": {
+    "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptesttq\\vnpy_ctptesttq\\__init__.py": {
       "destination": "{py_platlib}\\vnpy_ctptesttq\\__init__.py",
       "tag": "python-runtime",
       "subproject": null
     },
-    "D:\\02.QUANT\\FrameWork\\vnpy_spread_v1\\vnpy_ctptesttq\\vnpy_ctptesttq\\api\\__init__.py": {
+    "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptesttq\\vnpy_ctptesttq\\api\\__init__.py": {
       "destination": "{py_platlib}\\vnpy_ctptesttq/api\\__init__.py",
       "tag": "python-runtime",
       "subproject": null
     },
-    "D:\\02.QUANT\\FrameWork\\vnpy_spread_v1\\vnpy_ctptesttq\\vnpy_ctptesttq\\api\\ctp_constant.py": {
+    "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptesttq\\vnpy_ctptesttq\\api\\ctp_constant.py": {
       "destination": "{py_platlib}\\vnpy_ctptesttq/api\\ctp_constant.py",
       "tag": "python-runtime",
       "subproject": null
     },
-    "D:\\02.QUANT\\FrameWork\\vnpy_spread_v1\\vnpy_ctptesttq\\vnpy_ctptesttq\\gateway\\__init__.py": {
+    "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptesttq\\vnpy_ctptesttq\\gateway\\__init__.py": {
       "destination": "{py_platlib}\\vnpy_ctptesttq/gateway\\__init__.py",
       "tag": "python-runtime",
       "subproject": null
     },
-    "D:\\02.QUANT\\FrameWork\\vnpy_spread_v1\\vnpy_ctptesttq\\vnpy_ctptesttq\\gateway\\ctptesttq_gateway.py": {
+    "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptesttq\\vnpy_ctptesttq\\gateway\\ctptesttq_gateway.py": {
       "destination": "{py_platlib}\\vnpy_ctptesttq/gateway\\ctptesttq_gateway.py",
       "tag": "python-runtime",
       "subproject": null
     },
-    "D:\\02.QUANT\\FrameWork\\vnpy_spread_v1\\vnpy_ctptesttq\\vnpy_ctptesttq\\gateway\\tqsdk_support.py": {
+    "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptesttq\\vnpy_ctptesttq\\gateway\\tqsdk_support.py": {
       "destination": "{py_platlib}\\vnpy_ctptesttq/gateway\\tqsdk_support.py",
       "tag": "python-runtime",
       "subproject": null
     }
   },
   "data": {
-    "D:\\02.QUANT\\FrameWork\\vnpy_spread_v1\\vnpy_ctptesttq\\vnpy_ctptesttq\\api\\thostmduserapi_se.dll": {
+    "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptesttq\\vnpy_ctptesttq\\api\\thostmduserapi_se.dll": {
       "destination": "{py_platlib}/vnpy_ctptesttq/api\\thostmduserapi_se.dll",
       "tag": "runtime",
       "subproject": null
     },
-    "D:\\02.QUANT\\FrameWork\\vnpy_spread_v1\\vnpy_ctptesttq\\vnpy_ctptesttq\\api\\thosttraderapi_se.dll": {
+    "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptesttq\\vnpy_ctptesttq\\api\\thosttraderapi_se.dll": {
       "destination": "{py_platlib}/vnpy_ctptesttq/api\\thosttraderapi_se.dll",
       "tag": "runtime",
       "subproject": null

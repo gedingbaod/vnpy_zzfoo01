@@ -1,0 +1,13 @@
+{
+  "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptq\\vnpy_ctptq\\api\\vnctpmd.cp312-win_amd64.pyd": "c:/Lib\\site-packages\\vnpy_ctptq/api\\vnctpmd.cp312-win_amd64.pyd",
+  "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptq\\vnpy_ctptq\\api\\vnctpmd.cp312-win_amd64.lib": "c:/Lib\\site-packages\\vnpy_ctptq/api\\vnctpmd.cp312-win_amd64.lib",
+  "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptq\\vnpy_ctptq\\api\\vnctptd.cp312-win_amd64.pyd": "c:/Lib\\site-packages\\vnpy_ctptq/api\\vnctptd.cp312-win_amd64.pyd",
+  "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptq\\vnpy_ctptq\\api\\vnctptd.cp312-win_amd64.lib": "c:/Lib\\site-packages\\vnpy_ctptq/api\\vnctptd.cp312-win_amd64.lib",
+  "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptq\\vnpy_ctptq\\__init__.py": "c:/Lib\\site-packages\\vnpy_ctptq\\__init__.py",
+  "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptq\\vnpy_ctptq\\api\\__init__.py": "c:/Lib\\site-packages\\vnpy_ctptq/api\\__init__.py",
+  "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptq\\vnpy_ctptq\\api\\ctp_constant.py": "c:/Lib\\site-packages\\vnpy_ctptq/api\\ctp_constant.py",
+  "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptq\\vnpy_ctptq\\gateway\\__init__.py": "c:/Lib\\site-packages\\vnpy_ctptq/gateway\\__init__.py",
+  "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptq\\vnpy_ctptq\\gateway\\ctptq_gateway.py": "c:/Lib\\site-packages\\vnpy_ctptq/gateway\\ctptq_gateway.py",
+  "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptq\\vnpy_ctptq\\api\\thostmduserapi_se.dll": "c:/Lib/site-packages/vnpy_ctptq/api\\thostmduserapi_se.dll",
+  "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptq\\vnpy_ctptq\\api\\thosttraderapi_se.dll": "c:/Lib/site-packages/vnpy_ctptq/api\\thosttraderapi_se.dll"
+}

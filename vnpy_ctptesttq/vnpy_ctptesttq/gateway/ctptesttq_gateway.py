@@ -196,7 +196,8 @@ class CtptesttqGateway(BaseGateway):
 
     def subscribe(self, req: SubscribeRequest) -> None:
         """订阅行情"""
-        self.md_api.subscribe(req)
+        # self.md_api.subscribe(req)
+        self.tqsdk.subscribe_symbol(req.exchange.value, req.symbol)
 
     def send_order(self, req: OrderRequest) -> str:
         """委托下单"""
@@ -524,6 +525,7 @@ class CtptestTdApi(TdApi):
         # 由于流控，单次查询可能失败，通过while循环持续尝试，直到成功发出请求
         while True:
             self.reqid += 1
+            # 查询合约信息
             n: int = self.reqQryInstrument({}, self.reqid)
 
             if not n:
@@ -638,6 +640,7 @@ class CtptestTdApi(TdApi):
         if last:
             self.contract_inited = True
             self.gateway.write_log("合约信息查询成功")
+            print("合约信息查询成功")
 
             for data in self.order_data:
                 self.onRtnOrder(data)

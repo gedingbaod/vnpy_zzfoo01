@@ -1,0 +1,37 @@
+The Meson build system
+Version: 1.10.1
+Source dir: D:\02.QUANT\FrameWork\vnpy_zzfoo01\vnpy_ctptq
+Build dir: D:\02.QUANT\FrameWork\vnpy_zzfoo01\vnpy_ctptq\vnpy_ctptq\api
+Build type: native build
+Activating VS 17.14.16
+Project name: vnpy_ctptq
+Project version: 6.7.11.2
+C++ compiler for the host machine: cl (msvc 19.44.35217 "用于 x64 的 Microsoft (R) C/C++ 优化编译器 19.44.35217 版")
+C++ linker for the host machine: link link 14.44.35217.0
+Host machine cpu family: x86_64
+Host machine cpu: x86_64
+Program python found: YES (D:\02.DEV\miniconda3\envs\tqsdk-312\python.exe)
+Run-time dependency python found: YES 3.12
+Message: 使用pybind11路径: D:\02.DEV\miniconda3\envs\tqsdk-312\Lib\site-packages\pybind11\include
+Message: 构建目标系统: windows
+Library thostmduserapi_se found: YES
+Library thosttraderapi_se found: YES
+WARNING: Please do not define rpath with a linker argument, use install_rpath
+or build_rpath properties instead.
+This will become a hard error in a future Meson release.
+
+WARNING: Please do not define rpath with a linker argument, use install_rpath
+or build_rpath properties instead.
+This will become a hard error in a future Meson release.
+
+Build targets in project: 2
+
+vnpy_ctptq 6.7.11.2
+
+  User defined options
+    Native files: D:\02.QUANT\FrameWork\vnpy_zzfoo01\vnpy_ctptq\vnpy_ctptq\api\meson-python-native-file.ini
+    b_ndebug    : if-release
+    b_vscrt     : md
+    buildtype   : release
+
+Found ninja.EXE-1.13.0.git.kitware.jobserver-pipe-1 at D:\02.DEV\miniconda3\envs\tqsdk-312\Scripts\ninja.EXE

@@ -21,7 +21,7 @@ rule cpp_LINKER
  description = Linking target $out
 
 rule SHSYM
- command = "D:\02.DEV\miniconda3\envs\tqsdk-312\Scripts\meson" "--internal" "symbolextractor" "D:\02.QUANT\FrameWork\vnpy_spread_v1\vnpy_ctptesttq\vnpy_ctptesttq\api" $in $IMPLIB $out $CROSS
+ command = "D:\02.DEV\miniconda3\envs\tqsdk-312\Scripts\meson" "--internal" "symbolextractor" "D:\02.QUANT\FrameWork\vnpy_zzfoo01\vnpy_ctptesttq\vnpy_ctptesttq\api" $in $IMPLIB $out $CROSS
  description = Generating symbol file $out
  restat = 1
 
@@ -33,7 +33,7 @@ rule CUSTOM_COMMAND
  restat = 1
 
 rule REGENERATE_BUILD
- command = "D:\02.DEV\miniconda3\envs\tqsdk-312\Scripts\meson" "--internal" "regenerate" "D:\02.QUANT\FrameWork\vnpy_spread_v1\vnpy_ctptesttq" "."
+ command = "D:\02.DEV\miniconda3\envs\tqsdk-312\Scripts\meson" "--internal" "regenerate" "D:\02.QUANT\FrameWork\vnpy_zzfoo01\vnpy_ctptesttq" "."
  description = Regenerating build files
  generator = 1
 
@@ -51,8 +51,8 @@ build vnctpmd.cp312-win_amd64.pyd.p/vnpy_ctptesttq_api_vnctp_vnctpmd_vnctpmd.cpp
 build vnctpmd.cp312-win_amd64.pyd.p/vnctpmd.cp312-win_amd64.pyd.symbols: SHSYM vnctpmd.cp312-win_amd64.pyd
  IMPLIB = "vnctpmd.cp312-win_amd64.lib"
 
-build vnctpmd.cp312-win_amd64.pyd: cpp_LINKER vnctpmd.cp312-win_amd64.pyd.p/vnpy_ctptesttq_api_vnctp_vnctpmd_vnctpmd.cpp.obj | D$:/02.QUANT/FrameWork/vnpy_spread_v1/vnpy_ctptesttq/vnpy_ctptesttq/api/libs/thostmduserapi_se.lib D$:/02.DEV/miniconda3/envs/tqsdk-312/libs/python312.lib
- LINK_ARGS = "/release" "/nologo" "/OPT:REF" "/DLL" "/IMPLIB:vnctpmd.cp312-win_amd64.lib" "D:\02.DEV\miniconda3\envs\tqsdk-312\libs\python312.lib" "D:/02.QUANT/FrameWork/vnpy_spread_v1/vnpy_ctptesttq/vnpy_ctptesttq/api/libs/thostmduserapi_se.lib" "kernel32.lib" "user32.lib" "gdi32.lib" "winspool.lib" "shell32.lib" "ole32.lib" "oleaut32.lib" "uuid.lib" "comdlg32.lib" "advapi32.lib"
+build vnctpmd.cp312-win_amd64.pyd: cpp_LINKER vnctpmd.cp312-win_amd64.pyd.p/vnpy_ctptesttq_api_vnctp_vnctpmd_vnctpmd.cpp.obj | D$:/02.QUANT/FrameWork/vnpy_zzfoo01/vnpy_ctptesttq/vnpy_ctptesttq/api/libs/thostmduserapi_se.lib D$:/02.DEV/miniconda3/envs/tqsdk-312/libs/python312.lib
+ LINK_ARGS = "/release" "/nologo" "/OPT:REF" "/DLL" "/IMPLIB:vnctpmd.cp312-win_amd64.lib" "D:\02.DEV\miniconda3\envs\tqsdk-312\libs\python312.lib" "D:/02.QUANT/FrameWork/vnpy_zzfoo01/vnpy_ctptesttq/vnpy_ctptesttq/api/libs/thostmduserapi_se.lib" "kernel32.lib" "user32.lib" "gdi32.lib" "winspool.lib" "shell32.lib" "ole32.lib" "oleaut32.lib" "uuid.lib" "comdlg32.lib" "advapi32.lib"
 
 build vnctptd.cp312-win_amd64.pyd.p/vnpy_ctptesttq_api_vnctp_vnctptd_vnctptd.cpp.obj: cpp_COMPILER ../../vnpy_ctptesttq/api/vnctp/vnctptd/vnctptd.cpp
  DEPFILE = "vnctptd.cp312-win_amd64.pyd.p\vnpy_ctptesttq_api_vnctp_vnctptd_vnctptd.cpp.obj.d"
@@ -62,8 +62,8 @@ build vnctptd.cp312-win_amd64.pyd.p/vnpy_ctptesttq_api_vnctp_vnctptd_vnctptd.cpp
 build vnctptd.cp312-win_amd64.pyd.p/vnctptd.cp312-win_amd64.pyd.symbols: SHSYM vnctptd.cp312-win_amd64.pyd
  IMPLIB = "vnctptd.cp312-win_amd64.lib"
 
-build vnctptd.cp312-win_amd64.pyd: cpp_LINKER vnctptd.cp312-win_amd64.pyd.p/vnpy_ctptesttq_api_vnctp_vnctptd_vnctptd.cpp.obj | D$:/02.QUANT/FrameWork/vnpy_spread_v1/vnpy_ctptesttq/vnpy_ctptesttq/api/libs/thosttraderapi_se.lib D$:/02.DEV/miniconda3/envs/tqsdk-312/libs/python312.lib
- LINK_ARGS = "/release" "/nologo" "/OPT:REF" "/DLL" "/IMPLIB:vnctptd.cp312-win_amd64.lib" "D:\02.DEV\miniconda3\envs\tqsdk-312\libs\python312.lib" "D:/02.QUANT/FrameWork/vnpy_spread_v1/vnpy_ctptesttq/vnpy_ctptesttq/api/libs/thosttraderapi_se.lib" "kernel32.lib" "user32.lib" "gdi32.lib" "winspool.lib" "shell32.lib" "ole32.lib" "oleaut32.lib" "uuid.lib" "comdlg32.lib" "advapi32.lib"
+build vnctptd.cp312-win_amd64.pyd: cpp_LINKER vnctptd.cp312-win_amd64.pyd.p/vnpy_ctptesttq_api_vnctp_vnctptd_vnctptd.cpp.obj | D$:/02.QUANT/FrameWork/vnpy_zzfoo01/vnpy_ctptesttq/vnpy_ctptesttq/api/libs/thosttraderapi_se.lib D$:/02.DEV/miniconda3/envs/tqsdk-312/libs/python312.lib
+ LINK_ARGS = "/release" "/nologo" "/OPT:REF" "/DLL" "/IMPLIB:vnctptd.cp312-win_amd64.lib" "D:\02.DEV\miniconda3\envs\tqsdk-312\libs\python312.lib" "D:/02.QUANT/FrameWork/vnpy_zzfoo01/vnpy_ctptesttq/vnpy_ctptesttq/api/libs/thosttraderapi_se.lib" "kernel32.lib" "user32.lib" "gdi32.lib" "winspool.lib" "shell32.lib" "ole32.lib" "oleaut32.lib" "uuid.lib" "comdlg32.lib" "advapi32.lib"
 
 # Test rules
 

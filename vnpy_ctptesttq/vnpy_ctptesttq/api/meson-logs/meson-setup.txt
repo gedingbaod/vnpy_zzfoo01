@@ -1,7 +1,7 @@
 The Meson build system
 Version: 1.10.1
-Source dir: D:\02.QUANT\FrameWork\vnpy_spread_v1\vnpy_ctptesttq
-Build dir: D:\02.QUANT\FrameWork\vnpy_spread_v1\vnpy_ctptesttq\vnpy_ctptesttq\api
+Source dir: D:\02.QUANT\FrameWork\vnpy_zzfoo01\vnpy_ctptesttq
+Build dir: D:\02.QUANT\FrameWork\vnpy_zzfoo01\vnpy_ctptesttq\vnpy_ctptesttq\api
 Build type: native build
 Activating VS 17.14.16
 Project name: vnpy_ctptesttq
@@ -20,7 +20,7 @@ Build targets in project: 2
 vnpy_ctptesttq 6.7.2.1
 
   User defined options
-    Native files: D:\02.QUANT\FrameWork\vnpy_spread_v1\vnpy_ctptesttq\vnpy_ctptesttq\api\meson-python-native-file.ini
+    Native files: D:\02.QUANT\FrameWork\vnpy_zzfoo01\vnpy_ctptesttq\vnpy_ctptesttq\api\meson-python-native-file.ini
     b_ndebug    : if-release
     b_vscrt     : md
     buildtype   : release

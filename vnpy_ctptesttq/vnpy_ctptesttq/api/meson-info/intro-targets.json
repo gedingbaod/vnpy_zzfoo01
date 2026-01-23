@@ -3,9 +3,9 @@
     "name": "vnctpmd.cp312-win_amd64",
     "id": "vnctpmd.cp312-win_amd64.pyd@sha",
     "type": "shared module",
-    "defined_in": "D:\\02.QUANT\\FrameWork\\vnpy_spread_v1\\vnpy_ctptesttq\\meson.build",
+    "defined_in": "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptesttq\\meson.build",
     "filename": [
-      "D:\\02.QUANT\\FrameWork\\vnpy_spread_v1\\vnpy_ctptesttq\\vnpy_ctptesttq\\api\\vnctpmd.cp312-win_amd64.pyd"
+      "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptesttq\\vnpy_ctptesttq\\api\\vnctpmd.cp312-win_amd64.pyd"
     ],
     "build_by_default": true,
     "target_sources": [
@@ -16,11 +16,11 @@
           "cl"
         ],
         "parameters": [
-          "-ID:\\02.QUANT\\FrameWork\\vnpy_spread_v1\\vnpy_ctptesttq\\vnpy_ctptesttq\\api\\vnctpmd.cp312-win_amd64.pyd.p",
-          "-ID:\\02.QUANT\\FrameWork\\vnpy_spread_v1\\vnpy_ctptesttq\\vnpy_ctptesttq\\api",
-          "-ID:\\02.QUANT\\FrameWork\\vnpy_spread_v1\\vnpy_ctptesttq",
-          "-ID:\\02.QUANT\\FrameWork\\vnpy_spread_v1\\vnpy_ctptesttq\\vnpy_ctptesttq\\api\\include",
-          "-ID:\\02.QUANT\\FrameWork\\vnpy_spread_v1\\vnpy_ctptesttq\\vnpy_ctptesttq\\api\\vnctp",
+          "-ID:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptesttq\\vnpy_ctptesttq\\api\\vnctpmd.cp312-win_amd64.pyd.p",
+          "-ID:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptesttq\\vnpy_ctptesttq\\api",
+          "-ID:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptesttq",
+          "-ID:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptesttq\\vnpy_ctptesttq\\api\\include",
+          "-ID:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptesttq\\vnpy_ctptesttq\\api\\vnctp",
           "-ID:\\02.DEV\\miniconda3\\envs\\tqsdk-312\\Lib\\site-packages\\pybind11\\include",
           "-ID:\\02.DEV\\miniconda3\\envs\\tqsdk-312\\Include",
           "-DNDEBUG",
@@ -38,7 +38,7 @@
           "/MT"
         ],
         "sources": [
-          "D:\\02.QUANT\\FrameWork\\vnpy_spread_v1\\vnpy_ctptesttq\\vnpy_ctptesttq\\api\\vnctp\\vnctpmd\\vnctpmd.cpp"
+          "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptesttq\\vnpy_ctptesttq\\api\\vnctp\\vnctpmd\\vnctpmd.cpp"
         ],
         "generated_sources": [],
         "unity_sources": []
@@ -54,7 +54,7 @@
           "/DLL",
           "/IMPLIB:vnctpmd.cp312-win_amd64.lib",
           "D:\\02.DEV\\miniconda3\\envs\\tqsdk-312\\libs\\python312.lib",
-          "D:/02.QUANT/FrameWork/vnpy_spread_v1/vnpy_ctptesttq/vnpy_ctptesttq/api/libs/thostmduserapi_se.lib",
+          "D:/02.QUANT/FrameWork/vnpy_zzfoo01/vnpy_ctptesttq/vnpy_ctptesttq/api/libs/thostmduserapi_se.lib",
           "kernel32.lib",
           "user32.lib",
           "gdi32.lib",
@@ -84,9 +84,9 @@
     "name": "vnctptd.cp312-win_amd64",
     "id": "vnctptd.cp312-win_amd64.pyd@sha",
     "type": "shared module",
-    "defined_in": "D:\\02.QUANT\\FrameWork\\vnpy_spread_v1\\vnpy_ctptesttq\\meson.build",
+    "defined_in": "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptesttq\\meson.build",
     "filename": [
-      "D:\\02.QUANT\\FrameWork\\vnpy_spread_v1\\vnpy_ctptesttq\\vnpy_ctptesttq\\api\\vnctptd.cp312-win_amd64.pyd"
+      "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptesttq\\vnpy_ctptesttq\\api\\vnctptd.cp312-win_amd64.pyd"
     ],
     "build_by_default": true,
     "target_sources": [
@@ -97,11 +97,11 @@
           "cl"
         ],
         "parameters": [
-          "-ID:\\02.QUANT\\FrameWork\\vnpy_spread_v1\\vnpy_ctptesttq\\vnpy_ctptesttq\\api\\vnctptd.cp312-win_amd64.pyd.p",
-          "-ID:\\02.QUANT\\FrameWork\\vnpy_spread_v1\\vnpy_ctptesttq\\vnpy_ctptesttq\\api",
-          "-ID:\\02.QUANT\\FrameWork\\vnpy_spread_v1\\vnpy_ctptesttq",
-          "-ID:\\02.QUANT\\FrameWork\\vnpy_spread_v1\\vnpy_ctptesttq\\vnpy_ctptesttq\\api\\include",
-          "-ID:\\02.QUANT\\FrameWork\\vnpy_spread_v1\\vnpy_ctptesttq\\vnpy_ctptesttq\\api\\vnctp",
+          "-ID:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptesttq\\vnpy_ctptesttq\\api\\vnctptd.cp312-win_amd64.pyd.p",
+          "-ID:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptesttq\\vnpy_ctptesttq\\api",
+          "-ID:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptesttq",
+          "-ID:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptesttq\\vnpy_ctptesttq\\api\\include",
+          "-ID:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptesttq\\vnpy_ctptesttq\\api\\vnctp",
           "-ID:\\02.DEV\\miniconda3\\envs\\tqsdk-312\\Lib\\site-packages\\pybind11\\include",
           "-ID:\\02.DEV\\miniconda3\\envs\\tqsdk-312\\Include",
           "-DNDEBUG",
@@ -119,7 +119,7 @@
           "/MT"
         ],
         "sources": [
-          "D:\\02.QUANT\\FrameWork\\vnpy_spread_v1\\vnpy_ctptesttq\\vnpy_ctptesttq\\api\\vnctp\\vnctptd\\vnctptd.cpp"
+          "D:\\02.QUANT\\FrameWork\\vnpy_zzfoo01\\vnpy_ctptesttq\\vnpy_ctptesttq\\api\\vnctp\\vnctptd\\vnctptd.cpp"
         ],
         "generated_sources": [],
         "unity_sources": []
@@ -135,7 +135,7 @@
           "/DLL",
           "/IMPLIB:vnctptd.cp312-win_amd64.lib",
           "D:\\02.DEV\\miniconda3\\envs\\tqsdk-312\\libs\\python312.lib",
-          "D:/02.QUANT/FrameWork/vnpy_spread_v1/vnpy_ctptesttq/vnpy_ctptesttq/api/libs/thosttraderapi_se.lib",
+          "D:/02.QUANT/FrameWork/vnpy_zzfoo01/vnpy_ctptesttq/vnpy_ctptesttq/api/libs/thosttraderapi_se.lib",
           "kernel32.lib",
           "user32.lib",
           "gdi32.lib",

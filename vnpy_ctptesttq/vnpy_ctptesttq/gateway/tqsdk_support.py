@@ -1,10 +1,16 @@
-from datetime import time
+import asyncio
 from threading import Thread
-from time import sleep
-from typing import Dict, Set
+from typing import Dict
 from tqsdk import TqApi, TqAuth
-from vnpy.event import EventEngine
+from tqsdk.objs import Quote
+
+from common.account.tq_account import tq_auth
+from common.tq_contracts_dict import TqContractsDict
+from common.vnpy_time import get_now, datetime_format
+
+from vnpy.trader.object import TickData, ContractData
 from vnpy.trader.gateway import BaseGateway
+from .ctptesttq_gateway import symbol_contract_map, adjust_price, EXCHANGE_CTP2VT
 
 
 class TqsdkSupport:
@@ -12,33 +18,74 @@ class TqsdkSupport:
     def __init__(self, gateway: BaseGateway) -> None:
         self.subscribed: Dict[str, object] = {}  # 合约行情对象字典
         self.gateway: BaseGateway = gateway  # vnpy网关
+        self.gateway_name = gateway.gateway_name
         # 初始化天勤量化api
-        self.api = TqApi(auth=TqAuth("gedingbaod", "3028023abc"))
+        self.api = TqApi(auth=tq_auth)
 
+        self.contracts_obj = TqContractsDict(self.api)
+        self.contracts = None
+        self.contracts = self.contracts_obj.get_contracts()
         # 线程控制标志
         self._running = False
         self._thread = None
+        self.start()
+
+        # 严重问题，在这里获取数据，收到线程中 await_update影响，获取不到数据
+        # 应该将线程改为协程模式
+        # self.contracts = self.contracts_obj.get_contracts()
+
+
+    # def write_log(self, msg: str, source: str = "MainEngine") -> None:
+    #     """
+    #     Put log event with specific message.
+    #     """
+    #     log: LogData = LogData(msg=msg, gateway_name=source)
+    #     event: Event = Event(EVENT_LOG, log)
+    #     self.event_engine.put(event)
 
     ##########################################
     # 业务处理部分
     ##########################################
-    def subscribe_symbol(self, symbol: str) -> None:
+    def subscribe_symbol(self, exchange: str, symbol: str) -> None:
         """
         订阅单个合约
 
         Args:
             symbol: 合约代码
         """
+        # 拼装订阅合约
+        instrument = f'{exchange}.{symbol}'
+
+
+        from .ctptesttq_gateway import CtptesttqGateway
+        tq_gateway: CtptesttqGateway = self.gateway
+        # CTP交易服务已登录
+        if tq_gateway.td_api.login_status:
+            # 先做参数校验，不然会出错退出
+            contract: ContractData = symbol_contract_map.get(symbol, None)
+            if not contract:
+                print("订阅合约不存在")
+                return
+        else:
+            #print("未登录")
+            # self.contracts = self.contracts_obj.get_contracts()
+            contract = self.contracts[instrument]
+            if not contract:
+                print("订阅合约不存在")
+                return
+
+
+
         # 判断是否已订阅，如已订阅，直接返回
-        if symbol in self.subscribed:
-            print(f"已添加订阅: {symbol}，无需再次订阅")
+        if instrument in self.subscribed:
+            print(f"已添加订阅: {instrument}，无需再次订阅")
             return
 
         try:
-            print(f"正在订阅合约: {symbol}")
-            quote = self.api.get_quote(symbol)
-            self.subscribed[symbol] = quote
-            print(f"合约订阅成功: {symbol}")
+            print(f"正在订阅合约: {instrument}")
+            quote: Quote = self.api.get_quote(instrument)
+            self.subscribed[instrument] = quote
+            print(f"合约订阅成功: {instrument}")
 
             # 立即获取一次初始行情
             # initial_tick = self._convert_quote_to_tick(quote, symbol)
@@ -65,8 +112,76 @@ class TqsdkSupport:
             except Exception as e:
                 print(f"取消订阅失败 {symbol}: {e}")
 
+
+    def onRtnDepthMarketData(self, symbol: str, quote: Quote) -> None:
+
+        """行情数据推送"""
+        # 过滤没有时间戳的异常行情数据
+        if not quote.datetime:
+            return
+
+        exchange, _, symbol = quote.instrument_id.partition('.')
+
+        # 对大商所的交易日字段取本地日期
+        # if exchange == Exchange.DCE:
+        #     # self.current_date: str = datetime.now().strftime("%Y%m%d")
+        #     date_str: str = self.current_date
+        # else:
+        #   date_str = date_format_shorten(quote.datetime)
+
+
+        dt = datetime_format(quote.datetime)
+
+
+        tick: TickData = TickData(
+            symbol=symbol,
+            exchange=EXCHANGE_CTP2VT[exchange],
+            datetime=dt,
+            name=quote.instrument_name,
+            volume=quote.volume,
+            turnover=0, # 天勤量化里没有
+            open_interest=quote.open_interest,
+            last_price=adjust_price(quote.last_price),
+            limit_up=quote.upper_limit,
+            limit_down=quote.lower_limit,
+            open_price=adjust_price(quote.open),
+            high_price=adjust_price(quote.highest),
+            low_price=adjust_price(quote.lowest),
+            pre_close=adjust_price(quote.pre_close),
+            bid_price_1=adjust_price(quote.bid_price1),
+            ask_price_1=adjust_price(quote.ask_price1),
+            bid_volume_1=quote.bid_volume1,
+            ask_volume_1=quote.ask_volume1,
+            gateway_name=self.gateway_name
+        )
+
+        if quote.bid_volume2 or quote.ask_volume2:
+            tick.bid_price_2 = adjust_price(quote.bid_price2)
+            tick.bid_price_3 = adjust_price(quote.bid_price3)
+            tick.bid_price_4 = adjust_price(quote.bid_price4)
+            tick.bid_price_5 = adjust_price(quote.bid_price5)
+
+            tick.ask_price_2 = adjust_price(quote.ask_price2)
+            tick.ask_price_3 = adjust_price(quote.ask_price3)
+            tick.ask_price_4 = adjust_price(quote.ask_price4)
+            tick.ask_price_5 = adjust_price(quote.ask_price5)
+
+            tick.bid_volume_2 = quote.bid_volume2
+            tick.bid_volume_3 = quote.bid_volume3
+            tick.bid_volume_4 = quote.bid_volume4
+            tick.bid_volume_5 = quote.bid_volume5
+
+            tick.ask_volume_2 = quote.ask_volume2
+            tick.ask_volume_3 = quote.ask_volume3
+            tick.ask_volume_4 = quote.ask_volume4
+            tick.ask_volume_5 = quote.ask_volume5
+
+        self.gateway.on_tick(tick)
+
+
+
     ##########################################
-    # 线程处理部分
+    # 线程处理部分-----这里应该做异步线程
     ##########################################
     def _quote_loop(self):
         """
@@ -74,12 +189,14 @@ class TqsdkSupport:
         """
         print("行情数据线程开始运行")
         try:
-            while True:
+            while self._running:
                 # 阻塞等待更新
                 self.api.wait_update()
+                local_time = get_now()
                 for symbol, quote in self.subscribed.items():
                     # 示例：移除值为偶数的键值对
-                    print(f"near_quote：{quote}")
+                    # print(f"{local_time} symbol: {symbol} quote: {quote}")
+                    self.onRtnDepthMarketData(symbol, quote)
 
         except Exception as e:
             print(f"行情线程发生错误: {e}")
@@ -110,7 +227,7 @@ class TqsdkSupport:
 
         print("正在停止行情线程...")
         self._running = False
-
+        asyncio.sleep(0.5)
         # 等待线程结束
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=5)
