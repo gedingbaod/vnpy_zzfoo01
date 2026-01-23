@@ -20,52 +20,28 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-
 from pathlib import Path
 
 from vnpy.trader.app import BaseApp
-from vnpy.trader.object import (
-    OrderData,
-    TradeData,
-    TickData,
-    BarData
-)
 
-from .engine import (
-    SpreadEngine,
-    APP_NAME,
-    SpreadData,
-    LegData,
-    SpreadStrategyTemplate,
-    SpreadAlgoTemplate
-)
+from .engine import RiskEngine, APP_NAME
 
 
 __all__ = [
+    "RiskEngine",
     "APP_NAME",
-    "SpreadEngine",
-    "SpreadStrategyTemplate",
-    "SpreadAlgoTemplate",
-    "SpreadData",
-    "LegData",
-    "TickData",
-    "BarData",
-    "TradeData",
-    "OrderData",
-    "SpreadTradingApp",
+    "RiskManagerApp",
 ]
 
+__version__ = "2.0.0"
 
-__version__ = "1.3.1"
 
-# 用于注册的主程序
-class SpreadTradingApp(BaseApp):
+class RiskManagerApp(BaseApp):
     """"""
-
     app_name: str = APP_NAME
     app_module: str = __module__
     app_path: Path = Path(__file__).parent
-    display_name: str = "价差交易"
-    engine_class: type[SpreadEngine] = SpreadEngine
-    widget_name: str = "SpreadManager"
-    icon_name: str = str(app_path.joinpath("ui", "spread.ico"))
+    display_name: str = "交易风控"
+    engine_class: type[RiskEngine] = RiskEngine
+    widget_name: str = "RiskManager"
+    icon_name: str = str(app_path.joinpath("ui", "rm.ico"))
