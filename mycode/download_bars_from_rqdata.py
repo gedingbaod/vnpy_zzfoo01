@@ -74,8 +74,8 @@ def main(csv_path):
                 f"索引：{idx+1} 总数：{total} | 交易所：{exchange} | 合约代码：{sec_id} | 上市日期：{listed_date} | 退市日期：{delisted_date}")
 
             vnpy_data_process(sec_id, exchange, listed_date, delisted_date, Interval.MINUTE)
-            # vnpy_data_process(sec_id, exchange, listed_date, delisted_date, Interval.HOUR)
-            # vnpy_data_process(sec_id, exchange, listed_date, delisted_date, Interval.DAILY)
+            vnpy_data_process(sec_id, exchange, listed_date, delisted_date, Interval.HOUR)
+            vnpy_data_process(sec_id, exchange, listed_date, delisted_date, Interval.DAILY)
 
         # print(df)
         # return
