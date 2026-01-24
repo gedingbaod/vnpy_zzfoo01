@@ -138,7 +138,7 @@ class TqsdkSupport:
             datetime=dt,
             name=quote.instrument_name,
             volume=quote.volume,
-            turnover=0, # 天勤量化里没有
+            turnover=quote.amount,
             open_interest=quote.open_interest,
             last_price=adjust_price(quote.last_price),
             limit_up=quote.upper_limit,
