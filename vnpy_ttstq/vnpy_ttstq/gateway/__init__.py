@@ -1,4 +1,4 @@
-from .tts_gateway import TtsGateway
+from .ttstq_gateway import TtstqGateway
 
 
-__all__ = ["TtsGateway"]
+__all__ = ["TtstqGateway"]

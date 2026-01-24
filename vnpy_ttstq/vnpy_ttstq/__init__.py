@@ -22,13 +22,13 @@
 
 from importlib import metadata
 
-from .gateway import TtsGateway
+from .gateway import TtstqGateway
 
 
-__all__ = ["TtsGateway"]
+__all__ = ["TtstqGateway"]
 
 
 try:
-    __version__ = metadata.version("vnpy_tts")
+    __version__ = metadata.version("vnpy_ttstq")
 except metadata.PackageNotFoundError:
     __version__ = "dev"

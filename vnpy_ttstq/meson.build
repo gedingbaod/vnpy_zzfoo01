@@ -1,5 +1,5 @@
 project(
-  'vnpy_tts',
+  'vnpy_ttstq',
   'cpp',
   version: '6.7.2.3',
   license: 'MIT',
@@ -48,13 +48,13 @@ if host_machine.system() == 'windows'
   add_project_arguments('/MT', language : 'cpp')
   
   # 设置库目录
-  lib_dir = meson.current_source_dir() / 'vnpy_tts/api/libs'
-  api_dir = meson.current_source_dir() / 'vnpy_tts/api'
+  lib_dir = meson.current_source_dir() / 'vnpy_ttstq/api/libs'
+  api_dir = meson.current_source_dir() / 'vnpy_ttstq/api'
   
   # 设置include目录
   include_dirs = include_directories(
-    'vnpy_tts/api/include',
-    'vnpy_tts/api/vntts',
+    'vnpy_ttstq/api/include',
+    'vnpy_ttstq/api/vntts',
     pybind11_include_dir,
   )
   
@@ -81,12 +81,12 @@ else  # Linux
   ]
   
   # 设置库目录
-  lib_dir = meson.current_source_dir() / 'vnpy_tts/api'
+  lib_dir = meson.current_source_dir() / 'vnpy_ttstq/api'
   
   # 设置include目录
   include_dirs = include_directories(
-    'vnpy_tts/api/include',
-    'vnpy_tts/api/vntts',
+    'vnpy_ttstq/api/include',
+    'vnpy_ttstq/api/vntts',
     pybind11_include_dir,
   )
   
@@ -102,7 +102,7 @@ endif
 # 创建MD模块扩展
 md_module = py.extension_module(
   'vnttsmd',
-  sources: ['vnpy_tts/api/vntts/vnttsmd/vnttsmd.cpp'],
+  sources: ['vnpy_ttstq/api/vntts/vnttsmd/vnttsmd.cpp'],
   include_directories: include_dirs,
   dependencies: [py_dep],
   cpp_args: extra_cpp_args,
@@ -113,13 +113,13 @@ md_module = py.extension_module(
   ],
   install: true,
   install_rpath: '$ORIGIN',
-  subdir: 'vnpy_tts/api'
+  subdir: 'vnpy_ttstq/api'
 )
 
 # 创建TD模块扩展
 td_module = py.extension_module(
   'vnttstd',
-  sources: ['vnpy_tts/api/vntts/vnttstd/vnttstd.cpp'],
+  sources: ['vnpy_ttstq/api/vntts/vnttstd/vnttstd.cpp'],
   include_directories: include_dirs,
   dependencies: [py_dep],
   cpp_args: extra_cpp_args,
@@ -130,16 +130,16 @@ td_module = py.extension_module(
   ],
   install: true,
   install_rpath: '$ORIGIN',
-  subdir: 'vnpy_tts/api'
+  subdir: 'vnpy_ttstq/api'
 )
 
 # 安装Python源代码
 python_files = [
-  ['vnpy_tts/__init__.py', 'vnpy_tts'],
-  ['vnpy_tts/api/__init__.py', 'vnpy_tts/api'],
-  ['vnpy_tts/api/tts_constant.py', 'vnpy_tts/api'],
-  ['vnpy_tts/gateway/__init__.py', 'vnpy_tts/gateway'],
-  ['vnpy_tts/gateway/tts_gateway.py', 'vnpy_tts/gateway'],
+  ['vnpy_ttstq/__init__.py', 'vnpy_ttstq'],
+  ['vnpy_ttstq/api/__init__.py', 'vnpy_ttstq/api'],
+  ['vnpy_ttstq/api/tts_constant.py', 'vnpy_ttstq/api'],
+  ['vnpy_ttstq/gateway/__init__.py', 'vnpy_ttstq/gateway'],
+  ['vnpy_ttstq/gateway/ttstq_gateway.py', 'vnpy_ttstq/gateway'],
 ]
 
 foreach file : python_files
@@ -153,22 +153,22 @@ endforeach
 # 安装API动态库文件
 if host_machine.system() == 'windows'
   api_libs = [
-    'vnpy_tts/api/thostmduserapi_se.dll',
-    'vnpy_tts/api/thosttraderapi_se.dll',
+    'vnpy_ttstq/api/thostmduserapi_se.dll',
+    'vnpy_ttstq/api/thosttraderapi_se.dll',
   ]
   
   install_data(
     api_libs,
-    install_dir: py.get_install_dir() / 'vnpy_tts/api'
+    install_dir: py.get_install_dir() / 'vnpy_ttstq/api'
   )
 else  # Linux
   api_libs = [
-    'vnpy_tts/api/libthostmduserapi_se.so',
-    'vnpy_tts/api/libthosttraderapi_se.so',
+    'vnpy_ttstq/api/libthostmduserapi_se.so',
+    'vnpy_ttstq/api/libthosttraderapi_se.so',
   ]
   
   install_data(
     api_libs,
-    install_dir: py.get_install_dir() / 'vnpy_tts/api'
+    install_dir: py.get_install_dir() / 'vnpy_ttstq/api'
   )
 endif

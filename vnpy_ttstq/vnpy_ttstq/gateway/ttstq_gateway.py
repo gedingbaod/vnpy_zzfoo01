@@ -143,7 +143,7 @@ CHINA_TZ = ZoneInfo("Asia/Shanghai")       # 中国时区
 symbol_contract_map: dict[str, ContractData] = {}
 
 
-class TtsGateway(BaseGateway):
+class TtstqGateway(BaseGateway):
     """
     VeighNa用于对接期货TTS柜台的交易接口。
     """
@@ -259,11 +259,11 @@ class TtsGateway(BaseGateway):
 class TtsMdApi(MdApi):
     """"""
 
-    def __init__(self, gateway: TtsGateway) -> None:
+    def __init__(self, gateway: TtstqGateway) -> None:
         """构造函数"""
         super().__init__()
 
-        self.gateway: TtsGateway = gateway
+        self.gateway: TtstqGateway = gateway
         self.gateway_name: str = gateway.gateway_name
 
         self.reqid: int = 0
@@ -422,11 +422,11 @@ class TtsMdApi(MdApi):
 class TtsTdApi(TdApi):
     """"""
 
-    def __init__(self, gateway: TtsGateway) -> None:
+    def __init__(self, gateway: TtstqGateway) -> None:
         """构造函数"""
         super().__init__()
 
-        self.gateway: TtsGateway = gateway
+        self.gateway: TtstqGateway = gateway
         self.gateway_name: str = gateway.gateway_name
 
         self.reqid: int = 0

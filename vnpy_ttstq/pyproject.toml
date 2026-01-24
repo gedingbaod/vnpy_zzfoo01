@@ -1,5 +1,5 @@
 [project]
-name = "vnpy_tts"
+name = "vnpy_ttstq"
 version = "6.7.2.3"
 description = "TTS gateway for vn.py quant trading framework."
 readme = "README.md"
