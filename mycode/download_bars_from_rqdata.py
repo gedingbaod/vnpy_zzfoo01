@@ -52,14 +52,15 @@ def main(csv_path):
         print("没有找到CSV文件")
         return
 
-    # 遍历文件列表
+    # 遍历文件列表，一个文件一个商品
     for file_path in file_list:
         # if file_path.name.endswith('test.csv') is False:
         #     continue
+        print(f'导入文件：{file_path}')
         instruments_df = load_data_from_csv(file_path)
-
-        totle = len(instruments_df)
-
+        # 商品合约总数
+        total = len(instruments_df)
+        # 遍历该商品全部合约
         for idx, row in instruments_df.iterrows():
             # 提取当前行的字段值
             exchange = EXCHANGE_CTP2VT[row['exchange']]
@@ -70,14 +71,14 @@ def main(csv_path):
 
             # 打印行数据（可替换为你的业务逻辑）
             print(
-                f"索引：{idx} 总数：{totle} | 交易所：{exchange} | 合约代码：{sec_id} | 上市日期：{listed_date} | 退市日期：{delisted_date}")
+                f"索引：{idx+1} 总数：{total} | 交易所：{exchange} | 合约代码：{sec_id} | 上市日期：{listed_date} | 退市日期：{delisted_date}")
 
             vnpy_data_process(sec_id, exchange, listed_date, delisted_date, Interval.MINUTE)
             vnpy_data_process(sec_id, exchange, listed_date, delisted_date, Interval.HOUR)
             vnpy_data_process(sec_id, exchange, listed_date, delisted_date, Interval.DAILY)
 
         # print(df)
-        return
+        # return
 
 
 def vnpy_data_process(symbol, exchange, start, end, interval):

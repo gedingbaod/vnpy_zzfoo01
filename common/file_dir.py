@@ -48,8 +48,8 @@ def load_data_from_csv(file_path):
 
         # df['listed_date'] = pd.to_datetime(df['listed_date']).dt.to_pydatetime()
         # df['delisted_date'] = pd.to_datetime(df['delisted_date']).dt.to_pydatetime()
-        df = df.sort("delisted_date")
-        return df
+        # df_sorted_desc = df.sort_values('delisted_date', ascending=True)
+        return df.sort_values('delisted_date', ascending=True)
     except Exception as e:
         print(f"加载数据失败: {e}")
         return None
