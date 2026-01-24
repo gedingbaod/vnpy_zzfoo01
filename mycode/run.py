@@ -4,7 +4,7 @@ from vnpy.trader.engine import MainEngine
 from vnpy.trader.ui import MainWindow, create_qapp
 
 
-CONN='CTPTESTTQ'
+CONN='TTS'
 # 这三个只能留一个，不然会报错
 if CONN == 'CTP':
     from vnpy_ctp import CtpGateway
@@ -14,10 +14,10 @@ elif CONN == 'CTPTEST':
     from vnpy_ctptest import CtptestGateway
 elif CONN == 'CTPTESTTQ':
     from vnpy_ctptesttq import CtptesttqGateway
-elif CONN == 'TSS':
+elif CONN == 'TTS':
     from vnpy_tts import TtsGateway
 else:
-    print('请选择正确的连接方式：CTP | CTPTQ | CTP_TEST | CTPTESTTQ | TSS')
+    print('请选择正确的连接方式：CTP | CTPTQ | CTP_TEST | CTPTESTTQ | TTS')
     exit(0)
 
 # from vnpy_mini import MiniGateway
@@ -68,7 +68,7 @@ def main():
         main_engine.add_gateway(CtptestGateway)
     elif CONN == 'CTPTESTTQ':
         main_engine.add_gateway(CtptesttqGateway)
-    elif CONN == 'TSS':
+    elif CONN == 'TTS':
         main_engine.add_gateway(TtsGateway)
     else:
         exit(0)

@@ -20,6 +20,8 @@ from vnpy.trader.datafeed import BaseDatafeed
 
 INTERVAL_VT2RQ: dict[Interval, str] = {
     Interval.MINUTE: "1m",
+    # Interval.5MINUTE: "5m",
+    # Interval.15MINUTE: "15m",
     Interval.HOUR: "60m",
     Interval.DAILY: "1d",
 }
