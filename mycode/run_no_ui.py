@@ -8,10 +8,24 @@ from vnpy.trader.setting import SETTINGS
 from vnpy.trader.engine import MainEngine, LogEngine
 from vnpy.trader.logger import INFO, logger
 
-from vnpy_ctp import CtpGateway
-from vnpy_ctastrategy import CtaStrategyApp, CtaEngine
-from vnpy_ctastrategy.base import EVENT_CTA_LOG
 
+# from vnpy_ctastrategy import CtaStrategyApp, CtaEngine
+# from vnpy_ctastrategy.base import EVENT_CTA_LOG
+CONN='TTS'
+# 这三个只能留一个，不然会报错
+if CONN == 'CTP':
+    from vnpy_ctp import CtpGateway
+elif CONN == 'CTPTQ':
+    from vnpy_ctptq import CtptqGateway
+elif CONN == 'CTPTEST':
+    from vnpy_ctptest import CtptestGateway
+elif CONN == 'CTPTESTTQ':
+    from vnpy_ctptesttq import CtptesttqGateway
+elif CONN == 'TTS':
+    from vnpy_tts import TtsGateway
+else:
+    print('请选择正确的连接方式：CTP | CTPTQ | CTP_TEST | CTPTESTTQ | TTS')
+    exit(0)
 
 SETTINGS["log.active"] = True
 SETTINGS["log.level"] = INFO
@@ -28,7 +42,15 @@ ctp_setting = {
     "授权编码": "",
     "产品信息": ""
 }
-
+tss_setting = {
+    "用户名": "16788",
+    "密码": "123456",
+    "经纪商代码": "9999",
+    "交易服务器": "tcp://trading.openctp.cn:30001",
+    "行情服务器": "tcp://trading.openctp.cn:30011",
+    "产品名称": "",
+    "授权编码": ""
+}
 
 # Chinese futures market trading period (day/night)
 DAY_START = time(8, 45)
@@ -39,6 +61,7 @@ NIGHT_END = time(2, 45)
 
 
 def check_trading_period() -> bool:
+    return True
     """"""
     current_time = datetime.now().time()
 
@@ -61,28 +84,44 @@ def run_child() -> None:
 
     event_engine: EventEngine = EventEngine()
     main_engine: MainEngine = MainEngine(event_engine)
-    main_engine.add_gateway(CtpGateway)
-    cta_engine: CtaEngine = main_engine.add_app(CtaStrategyApp)
-    logger.info("主引擎创建成功")
 
-    log_engine: LogEngine = main_engine.get_engine("log")       # type: ignore
-    event_engine.register(EVENT_CTA_LOG, log_engine.process_log_event)
-    logger.info("注册日志事件监听")
 
-    main_engine.connect(ctp_setting, "CTP")
+    # 这三个只能留一个，不然会报错
+    if CONN == 'CTP':
+        main_engine.add_gateway(CtpGateway)
+        main_engine.connect(ctp_setting, CONN)
+    elif CONN == 'CTPTQ':
+        main_engine.add_gateway(CtptqGateway)
+    elif CONN == 'CTPTEST':
+        main_engine.add_gateway(CtptestGateway)
+    elif CONN == 'CTPTESTTQ':
+        main_engine.add_gateway(CtptesttqGateway)
+    elif CONN == 'TTS':
+        main_engine.add_gateway(TtsGateway)
+        main_engine.connect(tss_setting, CONN)
+    else:
+        exit(0)
+
+    # cta_engine: CtaEngine = main_engine.add_app(CtaStrategyApp)
+    # logger.info("主引擎创建成功")
+
+    # log_engine: LogEngine = main_engine.get_engine("log")
+    # event_engine.register(EVENT_CTA_LOG, log_engine.process_log_event)
+    # logger.info("注册日志事件监听")
+
     logger.info("连接CTP接口")
 
     sleep(10)
 
-    cta_engine.init_engine()
-    logger.info("CTA策略初始化完成")
-
-    cta_engine.init_all_strategies()
-    sleep(60)   # Leave enough time to complete strategy initialization
-    logger.info("CTA策略全部初始化")
-
-    cta_engine.start_all_strategies()
-    logger.info("CTA策略全部启动")
+    # cta_engine.init_engine()
+    # logger.info("CTA策略初始化完成")
+    #
+    # cta_engine.init_all_strategies()
+    # sleep(60)   # Leave enough time to complete strategy initialization
+    # logger.info("CTA策略全部初始化")
+    #
+    # cta_engine.start_all_strategies()
+    # logger.info("CTA策略全部启动")
 
     while True:
         sleep(10)
@@ -98,7 +137,7 @@ def run_parent() -> None:
     """
     Running in the parent process.
     """
-    print("启动CTA策略守护父进程")
+    print("启动守护父进程")
 
     child_process = None
 
