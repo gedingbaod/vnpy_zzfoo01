@@ -3,15 +3,19 @@ import sys
 from time import sleep
 from datetime import datetime, time
 
+from vnpy.trader.constant import Exchange
+
+from vnpy.trader.object import SubscribeRequest
+
 from vnpy.event import EventEngine
 from vnpy.trader.setting import SETTINGS
 from vnpy.trader.engine import MainEngine, LogEngine
 from vnpy.trader.logger import INFO, logger
 
 
-# from vnpy_ctastrategy import CtaStrategyApp, CtaEngine
-# from vnpy_ctastrategy.base import EVENT_CTA_LOG
-CONN='TTS'
+from vnpy_ctastrategy import CtaStrategyApp, CtaEngine
+from vnpy_ctastrategy.base import EVENT_CTA_LOG
+CONN='TTSTQ'
 # 这三个只能留一个，不然会报错
 if CONN == 'CTP':
     from vnpy_ctp import CtpGateway
@@ -23,8 +27,10 @@ elif CONN == 'CTPTESTTQ':
     from vnpy_ctptesttq import CtptesttqGateway
 elif CONN == 'TTS':
     from vnpy_tts import TtsGateway
+elif CONN == 'TTSTQ':
+    from vnpy_ttstq import TtstqGateway
 else:
-    print('请选择正确的连接方式：CTP | CTPTQ | CTP_TEST | CTPTESTTQ | TTS')
+    print('请选择正确的连接方式：CTP | CTPTQ | CTP_TEST | CTPTESTTQ | TTS | TTSTQ')
     exit(0)
 
 SETTINGS["log.active"] = True
@@ -89,32 +95,42 @@ def run_child() -> None:
     # 这三个只能留一个，不然会报错
     if CONN == 'CTP':
         main_engine.add_gateway(CtpGateway)
-        main_engine.connect(ctp_setting, CONN)
+        main_engine.connect(ctp_setting, CONN, gateway_name=CONN)
     elif CONN == 'CTPTQ':
-        main_engine.add_gateway(CtptqGateway)
+        main_engine.add_gateway(CtptqGateway, gateway_name=CONN)
     elif CONN == 'CTPTEST':
-        main_engine.add_gateway(CtptestGateway)
+        main_engine.add_gateway(CtptestGateway, gateway_name=CONN)
     elif CONN == 'CTPTESTTQ':
-        main_engine.add_gateway(CtptesttqGateway)
+        main_engine.add_gateway(CtptesttqGateway, gateway_name=CONN)
     elif CONN == 'TTS':
-        main_engine.add_gateway(TtsGateway)
+        main_engine.add_gateway(TtsGateway, gateway_name=CONN)
+        main_engine.connect(tss_setting, CONN)
+    elif CONN == 'TTSTQ':
+        main_engine.add_gateway(TtstqGateway, gateway_name=CONN)
         main_engine.connect(tss_setting, CONN)
     else:
         exit(0)
 
-    # cta_engine: CtaEngine = main_engine.add_app(CtaStrategyApp)
-    # logger.info("主引擎创建成功")
+    cta_engine: CtaEngine = main_engine.add_app(CtaStrategyApp)
+    logger.info("主引擎创建成功")
 
-    # log_engine: LogEngine = main_engine.get_engine("log")
-    # event_engine.register(EVENT_CTA_LOG, log_engine.process_log_event)
-    # logger.info("注册日志事件监听")
+    log_engine: LogEngine = main_engine.get_engine("log")
+    event_engine.register(EVENT_CTA_LOG, log_engine.process_log_event)
+    logger.info("注册日志事件监听")
 
-    logger.info("连接CTP接口")
+    logger.info("连接CTP接口完成")
 
     sleep(10)
 
-    # cta_engine.init_engine()
-    # logger.info("CTA策略初始化完成")
+    # Subscribe tick data
+    req: SubscribeRequest = SubscribeRequest(
+        symbol='ag2604', exchange=Exchange('SHFE')
+    )
+    logger.info(f"订阅{req.symbol}")
+    main_engine.subscribe(req, CONN)
+
+    cta_engine.init_engine()
+    logger.info("CTA策略初始化完成")
     #
     # cta_engine.init_all_strategies()
     # sleep(60)   # Leave enough time to complete strategy initialization

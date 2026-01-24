@@ -4,8 +4,8 @@ from vnpy.trader.engine import MainEngine
 from vnpy.trader.ui import MainWindow, create_qapp
 
 
-CONN='TTS'
-# 这三个只能留一个，不然会报错
+CONN='TTSTQ'
+# 这六个只能留一个，不然会报错
 if CONN == 'CTP':
     from vnpy_ctp import CtpGateway
 elif CONN == 'CTPTQ':
@@ -16,8 +16,10 @@ elif CONN == 'CTPTESTTQ':
     from vnpy_ctptesttq import CtptesttqGateway
 elif CONN == 'TTS':
     from vnpy_tts import TtsGateway
+elif CONN == 'TTSTQ':
+    from vnpy_ttstq import TtstqGateway
 else:
-    print('请选择正确的连接方式：CTP | CTPTQ | CTP_TEST | CTPTESTTQ | TTS')
+    print('请选择正确的连接方式：CTP | CTPTQ | CTP_TEST | CTPTESTTQ | TTS | TTSTQ')
     exit(0)
 
 # from vnpy_mini import MiniGateway
@@ -59,17 +61,19 @@ def main():
 
     main_engine = MainEngine(event_engine)
 
-    # 这三个只能留一个，不然会报错
+    # 这六个只能留一个，不然会报错
     if CONN == 'CTP':
         main_engine.add_gateway(CtpGateway)
     elif CONN == 'CTPTQ':
-        main_engine.add_gateway(CtptqGateway)
+        main_engine.add_gateway(CtptqGateway, gateway_name=CONN)
     elif CONN == 'CTPTEST':
-        main_engine.add_gateway(CtptestGateway)
+        main_engine.add_gateway(CtptestGateway, gateway_name=CONN)
     elif CONN == 'CTPTESTTQ':
-        main_engine.add_gateway(CtptesttqGateway)
+        main_engine.add_gateway(CtptesttqGateway, gateway_name=CONN)
     elif CONN == 'TTS':
-        main_engine.add_gateway(TtsGateway)
+        main_engine.add_gateway(TtsGateway, gateway_name=CONN)
+    elif CONN == 'TTSTQ':
+        main_engine.add_gateway(TtstqGateway, gateway_name=CONN)
     else:
         exit(0)
     # main_engine.add_gateway(MiniGateway)
