@@ -123,7 +123,6 @@ def run_child() -> None:
     # cta_engine.start_all_strategies()
     # logger.info("CTA策略全部启动")
 
-
     while True:
         sleep(10)
 
