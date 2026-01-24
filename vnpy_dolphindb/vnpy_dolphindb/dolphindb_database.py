@@ -142,7 +142,7 @@ class DolphindbDatabase(BaseDatabase):
             "count": count,
             "start": start,
             "end": end,
-            "datetime": dt,
+            "datetime": end,
         }
         data.append(d)
 
