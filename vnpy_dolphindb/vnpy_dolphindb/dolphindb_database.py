@@ -257,8 +257,7 @@ class DolphindbDatabase(BaseDatabase):
 
         # 更新Tick汇总数据
         data = []
-
-        dt = np.datetime64(datetime(2022, 1, 1))    # 该时间戳仅用于分区
+        dt = np.datetime64(datetime.now())    # 该时间戳仅用于分区
 
         d = {
             "symbol": symbol,

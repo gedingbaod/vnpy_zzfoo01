@@ -43,20 +43,28 @@ SETTINGS["database.password"] = "123456"
 datafeed = get_datafeed()
 database = get_database()
 
+log_file =open("log.txt", "a")
+def log_write(msg):
+    log_file.write(msg)
+    log_file.write("\n")
+    print( msg)
+    log_file.flush()
+
 def main(csv_path):
+
 
     # 获取所有合约
     file_list = traverse_file_in_dir(csv_path)
 
     if file_list is None:
-        print("没有找到CSV文件")
+        log_write("没有找到CSV文件")
         return
 
     # 遍历文件列表，一个文件一个商品
     for file_path in file_list:
         # if file_path.name.endswith('test.csv') is False:
         #     continue
-        print(f'导入文件：{file_path}')
+        log_write(f'导入文件：{file_path}')
         instruments_df = load_data_from_csv(file_path)
         # 商品合约总数
         total = len(instruments_df)
@@ -70,8 +78,8 @@ def main(csv_path):
             delisted_date = row['delisted_date'].to_pydatetime()
 
             # 打印行数据（可替换为你的业务逻辑）
-            print(
-                f"索引：{idx+1} 总数：{total} | 交易所：{exchange} | 合约代码：{sec_id} | 上市日期：{listed_date} | 退市日期：{delisted_date}")
+            log_write(f"索引：{idx+1} 总数：{total} | 交易所：{exchange} "
+                      f"| 合约代码：{sec_id} | 上市日期：{listed_date} | 退市日期：{delisted_date}")
 
             vnpy_data_process(sec_id, exchange, listed_date, delisted_date, Interval.MINUTE)
             vnpy_data_process(sec_id, exchange, listed_date, delisted_date, Interval.HOUR)
@@ -97,13 +105,13 @@ def vnpy_data_process(symbol, exchange, start, end, interval):
         # 如果下载成功则保存
         if bars:
             database.save_bar_data(bars)
-            print(f"下载数据成功：{symbol}.{exchange}，周期：{interval}，总数据量：{len(bars)}")
+            log_write(f"下载数据成功：{symbol}.{exchange}，周期：{interval}，总数据量：{len(bars)}")
         # 否则失败则打印信息
         else:
-            print(f"下载数据失败：{symbol}.{exchange}")
+            log_write(f"下载数据失败：{symbol}.{exchange}")
     except Exception as e:
-        print(f"下载数据失败：{symbol}.{exchange}")
-        print(e)
+        log_write(f"下载数据失败：{symbol}.{exchange}")
+        log_write(e)
 
 
 if __name__ == "__main__":
