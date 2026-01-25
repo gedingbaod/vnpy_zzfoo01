@@ -85,8 +85,6 @@ def main(csv_path):
             vnpy_data_process(sec_id, exchange, listed_date, delisted_date, Interval.HOUR)
             vnpy_data_process(sec_id, exchange, listed_date, delisted_date, Interval.DAILY)
 
-        # print(df)
-        # return
 
 
 def vnpy_data_process(symbol, exchange, start, end, interval):
@@ -101,16 +99,16 @@ def vnpy_data_process(symbol, exchange, start, end, interval):
     try:
         # 从数据服务下载数据
         bars: list[BarData] = datafeed.query_bar_history(req)
-
+        log_write(f"下载数据成功：{symbol}.{exchange}，周期：{interval}，总数据量：{len(bars)}")
         # 如果下载成功则保存
         if bars:
             database.save_bar_data(bars)
-            log_write(f"下载数据成功：{symbol}.{exchange}，周期：{interval}，总数据量：{len(bars)}")
+            log_write(f"保存数据成功：{symbol}.{exchange}，周期：{interval}，总数据量：{len(bars)}")
         # 否则失败则打印信息
         else:
-            log_write(f"下载数据失败：{symbol}.{exchange}")
+            log_write(f"数据为空：{symbol}.{exchange}")
     except Exception as e:
-        log_write(f"下载数据失败：{symbol}.{exchange}")
+        log_write(f"下载数据异常：{symbol}.{exchange}")
         log_write(e)
 
 
