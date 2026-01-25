@@ -60,6 +60,8 @@ def main(csv_path):
         log_write("没有找到CSV文件")
         return
 
+    # list_loaded = database.get_bar_overview()
+
     # 遍历文件列表，一个文件一个商品
     for file_path in file_list:
         # if file_path.name.endswith('test.csv') is False:
@@ -78,14 +80,20 @@ def main(csv_path):
             delisted_date = row['delisted_date'].to_pydatetime()
 
             # 打印行数据（可替换为你的业务逻辑）
-            log_write(f"索引：{idx+1} 总数：{total} | 交易所：{exchange} "
-                      f"| 合约代码：{sec_id} | 上市日期：{listed_date} | 退市日期：{delisted_date}")
+            # log_write(f"索引：{idx+1} 总数：{total} | 交易所：{exchange} "
+            #           f"| 合约代码：{sec_id} | 上市日期：{listed_date} | 退市日期：{delisted_date}")
 
             vnpy_data_process(sec_id, exchange, listed_date, delisted_date, Interval.MINUTE)
             vnpy_data_process(sec_id, exchange, listed_date, delisted_date, Interval.HOUR)
-            vnpy_data_process(sec_id, exchange, listed_date, delisted_date, Interval.DAILY)
+            vnpy_data_process(sec_id, exchange, listed_date, listed_date, Interval.DAILY)
 
+            # if not check_loaded(symbol=sec_id, exchange=exchange, list_loaded=list_loaded):
+            #     log_write(f"{sec_id}.{exchange} 未下载")
 
+def check_loaded(symbol, exchange, list_loaded):
+    for row in list_loaded:
+        if row.symbol == symbol and row.exchange.value == exchange.value:
+            return True
 
 def vnpy_data_process(symbol, exchange, start, end, interval):
     # 创建历史数据请求对象
