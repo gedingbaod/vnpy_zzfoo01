@@ -133,7 +133,7 @@ class DolphindbDatabase(BaseDatabase):
         # 更新K线汇总数据
         data = []
 
-        dt = np.datetime64(datetime(2022, 1, 1))    # 该时间戳仅用于分区
+        dt = np.datetime64(datetime.now())    # 该时间戳仅用于分区
 
         d = {
             "symbol": symbol,
@@ -142,7 +142,7 @@ class DolphindbDatabase(BaseDatabase):
             "count": count,
             "start": start,
             "end": end,
-            "datetime": end,
+            "datetime": dt,
         }
         data.append(d)
 
