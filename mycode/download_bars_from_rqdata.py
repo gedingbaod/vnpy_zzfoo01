@@ -45,9 +45,12 @@ database = get_database()
 
 log_file =open("log.txt", "a")
 def log_write(msg):
-    log_file.write(msg)
-    log_file.write("\n")
-    print( msg)
+    out_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    out_str += "   "
+    out_str += msg
+    out_str += "\n"
+    log_file.write(out_str)
+    print(out_str)
     log_file.flush()
 
 def main(csv_path):
@@ -116,7 +119,7 @@ def vnpy_data_process(symbol, exchange, start, end, interval):
         else:
             log_write(f"数据为空：{symbol}.{exchange}")
     except Exception as e:
-        log_write(f"下载数据异常：{symbol}.{exchange}")
+        log_write(f"========下载数据异常：{symbol}.{exchange}")
         log_write(e)
 
 
