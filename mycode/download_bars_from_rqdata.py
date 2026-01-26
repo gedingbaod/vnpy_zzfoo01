@@ -85,7 +85,7 @@ def main(csv_path):
 
             vnpy_data_process(sec_id, exchange, listed_date, delisted_date, Interval.MINUTE)
             vnpy_data_process(sec_id, exchange, listed_date, delisted_date, Interval.HOUR)
-            vnpy_data_process(sec_id, exchange, listed_date, listed_date, Interval.DAILY)
+            vnpy_data_process(sec_id, exchange, listed_date, delisted_date, Interval.DAILY)
 
             # if not check_loaded(symbol=sec_id, exchange=exchange, list_loaded=list_loaded):
             #     log_write(f"{sec_id}.{exchange} 未下载")
