@@ -4,13 +4,11 @@ from time import sleep
 from datetime import datetime, time
 
 from vnpy.trader.constant import Exchange
-
 from vnpy.trader.object import SubscribeRequest
-
 from vnpy.event import EventEngine
-from vnpy.trader.setting import SETTINGS
 from vnpy.trader.engine import MainEngine, LogEngine
-from vnpy.trader.logger import INFO, logger
+# 配置日志（在vt_setting.json设置，启动后配置无效）
+from vnpy.trader.logger import logger
 
 
 from vnpy_ctastrategy import CtaStrategyApp, CtaEngine
@@ -32,10 +30,6 @@ elif CONN == 'TTSTQ':
 else:
     print('请选择正确的连接方式：CTP | CTPTQ | CTP_TEST | CTPTESTTQ | TTS | TTSTQ')
     exit(0)
-
-SETTINGS["log.active"] = True
-SETTINGS["log.level"] = INFO
-SETTINGS["log.console"] = True
 
 
 ctp_setting = {
@@ -86,8 +80,6 @@ def run_child() -> None:
     """
     Running in the child process.
     """
-    SETTINGS["log.file"] = True
-
     event_engine: EventEngine = EventEngine()
     main_engine: MainEngine = MainEngine(event_engine)
     logger.info("主引擎创建成功")
@@ -151,6 +143,7 @@ def run_parent() -> None:
     Running in the parent process.
     """
     print("启动守护父进程")
+    logger.critical("启动守护父进程")
 
     child_process = None
 
