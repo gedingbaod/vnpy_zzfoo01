@@ -5,5 +5,6 @@
     "交易服务器": "tcp://trading.openctp.cn:30001",
     "行情服务器": "tcp://trading.openctp.cn:30011",
     "产品名称": "",
-    "授权编码": ""
+    "授权编码": "",
+    "行情源": "TQSDK"
 }

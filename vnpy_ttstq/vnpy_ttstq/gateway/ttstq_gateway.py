@@ -1,6 +1,17 @@
+from __future__ import annotations
+
+import asyncio
 import sys
+import os
 from datetime import datetime
 from time import sleep
+from threading import Thread
+from typing import Any, Union
+
+from tqsdk.objs import Quote
+
+from common.account.tq_account import tq_auth
+from common.vnpy_time import datetime_format
 from vnpy.event.engine import EventEngine
 from pathlib import Path
 
@@ -28,6 +39,12 @@ from vnpy.trader.object import (
 from vnpy.trader.utility import get_folder_path, ZoneInfo
 from vnpy.trader.event import EVENT_TIMER
 from vnpy.event import Event
+
+try:
+    from tqsdk import TqApi, TqAuth
+    TQSDK_AVAILABLE = True
+except ImportError:
+    TQSDK_AVAILABLE = False
 
 from ..api import (
     MdApi,
@@ -157,7 +174,8 @@ class TtstqGateway(BaseGateway):
         "交易服务器": "",
         "行情服务器": "",
         "产品名称": "",
-        "授权编码": ""
+        "授权编码": "",
+        "行情源": "TTS",  # TTS 或 TQSDK
     }
 
     exchanges: list[str] = list(EXCHANGE_TTS2VT.values())
@@ -168,8 +186,10 @@ class TtstqGateway(BaseGateway):
 
         self.td_api: TtsTdApi = TtsTdApi(self)
         self.md_api: TtsMdApi = TtsMdApi(self)
+        self.tq_md_api: Union[TqSdkMdApi, None] = None  # TQSDK行情API
 
         self.count: int = 0
+        self.market_source: str = "TTS"  # 默认使用TTS行情
 
     def connect(self, setting: dict) -> None:
         """连接交易接口"""
@@ -180,6 +200,10 @@ class TtstqGateway(BaseGateway):
         md_address: str = setting["行情服务器"]
         appid: str = setting["产品名称"]
         auth_code: str = setting["授权编码"]
+        market_source: str = setting.get("行情源", "TTS")  # 获取行情源配置
+        # market_source = check_tqsdk(market_source)
+
+        self.market_source = market_source.upper()  # 保存行情源配置
 
         if (
             (not td_address.startswith("tcp://"))
@@ -193,14 +217,35 @@ class TtstqGateway(BaseGateway):
         ):
             md_address = "tcp://" + md_address
 
+        # 连接交易接口
         self.td_api.connect(td_address, userid, password, brokerid, auth_code, appid)
-        self.md_api.connect(md_address, userid, password, brokerid)
+
+        # 根据配置选择行情源
+        if self.market_source == "TQSDK":
+            if not TQSDK_AVAILABLE:
+                self.write_log("警告：未安装tqsdk库，无法使用TQSDK行情源，将使用TTS行情源")
+                self.market_source = "TTS"
+                self.md_api.connect(md_address, userid, password, brokerid)
+            else:
+                self.tq_md_api = TqSdkMdApi(self)
+                # 连接之前，默认是TTS，tq_md_api.subscribed为空，但是会有订阅输入
+                # 所以在TQSDK连接时，把这部分订阅，加入到TQSDK的订阅里
+                # TQSDK会在连接后，把这部分订阅执行
+                self.tq_md_api.subscribed.update(self.md_api.subscribed)
+                self.tq_md_api.connect()
+
+        else:  # 默认使用TTS行情
+            self.md_api.connect(md_address, userid, password, brokerid)
 
         self.init_query()
 
     def subscribe(self, req: SubscribeRequest) -> None:
         """订阅行情"""
-        self.md_api.subscribe(req)
+        # if self.market_source == "TQSDK" and self.tq_md_api:
+        if self.market_source == "TQSDK":
+            self.tq_md_api.subscribe(req)
+        else:  # 默认使用TTS行情
+            self.md_api.subscribe(req)
 
     def send_order(self, req: OrderRequest) -> str:
         """委托下单"""
@@ -227,7 +272,12 @@ class TtstqGateway(BaseGateway):
     def close(self) -> None:
         """关闭接口"""
         self.td_api.close()
-        self.md_api.close()
+
+        # 根据行情源关闭相应的行情API
+        if self.market_source == "TQSDK" and self.tq_md_api:
+            self.tq_md_api.close()
+        else:
+            self.md_api.close()
 
     def write_error(self, msg: str, error: dict) -> None:
         """输出错误信息日志"""
@@ -247,7 +297,11 @@ class TtstqGateway(BaseGateway):
         func()
         self.query_functions.append(func)
 
-        self.md_api.update_date()
+        # 根据行情源更新日期
+        if self.market_source == "TQSDK" and self.tq_md_api:
+            pass  # TQSDK不需要更新日期
+        else:
+            self.md_api.update_date()
 
     def init_query(self) -> None:
         """初始化查询任务"""
@@ -404,7 +458,9 @@ class TtsMdApi(MdApi):
         # 过滤重复的订阅
         if symbol in self.subscribed:
             return
-
+        # 订阅逻辑分已连接和未连接
+        # 已连接情况，订阅合约，加入订阅列表
+        # 未连接情况，只加入订阅列表，在连接后会再调用一次订阅
         if self.login_status:
             self.subscribeMarketData(req.symbol)
         self.subscribed.add(req.symbol)
@@ -919,8 +975,271 @@ class TtsTdApi(TdApi):
             self.exit()
 
 
+class TqSdkMdApi:
+    """
+    TQSDK行情API类，用于从tqsdk订阅期货合约行情
+    初始化和连接是分两步的
+    初始化是在系统启动，创建对象时
+    连接实在窗口调用连接时，这个和行情订阅有关
+    """
+    def __init__(self, gateway: TtstqGateway) -> None:
+        """构造函数"""
+        self.gateway: TtstqGateway = gateway
+        self.gateway_name: str = gateway.gateway_name
+
+        self.api: TqApi | None = None
+        self.active: bool = False
+        self.thread: Thread | None = None
+        # 在未连接前，还无法订阅行情，此处保存要订阅的数据，连接之后会再调用一次订阅
+        self.subscribed: set = set()
+        self.quotes: dict[str, Any] = {}  # 保存行情引用 {symbol: quote}
+
+    def connect(self) -> None:
+        """连接TQSDK"""
+        try:
+            # 初始化TQSDK API
+            self.api = TqApi(auth=tq_auth)
+            self.gateway.write_log("TQSDK行情连接成功")
+
+            # 启动行情接收线程
+            self.active = True
+            self.thread = Thread(target=self._run)
+            self.thread.start()
+            self.gateway.write_log("TQSDK行情线程启动")
+            for symbol in self.subscribed:
+                self._subscribe_symbol(symbol)
+
+        except Exception as e:
+            self.gateway.write_log(f"TQSDK行情连接失败：{str(e)}")
+
+    def subscribe(self, req: SubscribeRequest) -> None:
+        """订阅行情"""
+        symbol: str = req.symbol
+
+        # 过滤重复的订阅
+        if symbol in self.subscribed:
+            return
+        # 订阅逻辑分已连接和未连接
+        # 已连接情况，订阅合约，加入订阅列表
+        # 未连接情况，只加入订阅列表，在连接后会再调用一次订阅
+        if self.active:
+            self._subscribe_symbol(req.symbol)
+        self.subscribed.add(req.symbol)
+
+    def _subscribe_symbol(self, symbol: str) -> None:
+        """订阅行情"""
+        # symbol: str = req.symbol
+
+        # 过滤重复的订阅
+        if symbol in self.quotes:
+            self.gateway.write_log(f"{symbol}已添加订阅，无需再次订阅")
+            return
+
+        # 从全局合约映射中获取合约信息
+        contract: ContractData | None = symbol_contract_map.get(symbol, None)
+        if not contract:
+            self.gateway.write_log(f"未找到合约{symbol}或行情未连接")
+            return
+
+        # 构造tqsdk格式的合约代码
+        tq_symbol: str = f"{contract.exchange.value}.{symbol}"
+
+        try:
+            # 获取行情引用（自动订阅）
+            quote = self.api.get_quote(tq_symbol)
+
+            # 保存行情引用
+            self.quotes[symbol] = quote
+            self.gateway.write_log(f"TQSDK订阅行情成功：{tq_symbol}")
+
+        except Exception as e:
+            self.gateway.write_log(f"TQSDK订阅行情失败 [{tq_symbol}]：{str(e)}")
+
+    def _run(self) -> None:
+        """行情接收线程"""
+        while self.active:
+            try:
+                # 等待行情推送
+                self.api.wait_update()
+
+                # 处理所有已订阅合约的行情
+                for symbol, quote in self.quotes.items():
+                    # 示例：移除值为偶数的键值对
+                    # print(f"{local_time} symbol: {symbol} quote: {quote}")
+                    self._process_tick(symbol, quote)
+
+            except Exception as e:
+                if self.active:
+                    self.gateway.write_log(f"TQSDK行情处理异常：{str(e)}")
+                break
+
+        # 退出循环后关闭API
+        if self.api:
+            try:
+                self.api.close()
+                self.gateway.write_log(f"TQSDK连接关闭")
+            except Exception:
+                self.gateway.write_log(f"TQSDK行情处理异常：{str(e)}")
+            self.api = None
+
+    def _process_tick(self, symbol: str, quote: Quote) -> None:
+        """处理单个合约的行情数据"""
+        if not self.api:
+            return
+
+        try:
+            # 从保存的行情引用中获取quote
+            # quote = self.quotes.get(symbol)
+            # if not quote:
+            #     return
+
+            # # 使用is_changing检查行情是否有变化
+            # if not self.api.is_changing(quote):
+            #     return
+
+            # 检查行情数据是否有效
+            if not quote.datetime:
+                return
+
+            # # 从全局合约映射中获取合约信息
+            # contract: ContractData | None = symbol_contract_map.get(symbol, None)
+            # if not contract:
+            #     return
+            #
+            # # 转换时间为vnpy格式
+            # dt: datetime = datetime.fromtimestamp(quote.datetime / 1e9, tz=CHINA_TZ)
+
+            exchange, _, symbol = quote.instrument_id.partition('.')
+
+            dt = datetime_format(quote.datetime)
+
+            # 构造TickData对象
+            tick: TickData = TickData(
+                symbol=symbol,
+                exchange=EXCHANGE_TTS2VT[exchange],
+                datetime=dt,
+                name=quote.instrument_name,
+                volume=quote.volume,
+                turnover=quote.amount,
+                open_interest=quote.open_interest,
+                last_price=adjust_price(quote.last_price),
+                limit_up=quote.upper_limit,
+                limit_down=quote.lower_limit,
+                open_price=adjust_price(quote.open),
+                high_price=adjust_price(quote.highest),
+                low_price=adjust_price(quote.lowest),
+                pre_close=adjust_price(quote.pre_close),
+                bid_price_1=adjust_price(quote.bid_price1),
+                ask_price_1=adjust_price(quote.ask_price1),
+                bid_volume_1=quote.bid_volume1,
+                ask_volume_1=quote.ask_volume1,
+                gateway_name=self.gateway_name
+            )
+
+            # 如果有五档行情，也设置
+            if quote.bid_volume2 or quote.ask_volume2:
+                tick.bid_price_2 = adjust_price(quote.bid_price2)
+                tick.bid_price_3 = adjust_price(quote.bid_price3)
+                tick.bid_price_4 = adjust_price(quote.bid_price4)
+                tick.bid_price_5 = adjust_price(quote.bid_price5)
+
+                tick.ask_price_2 = adjust_price(quote.ask_price2)
+                tick.ask_price_3 = adjust_price(quote.ask_price3)
+                tick.ask_price_4 = adjust_price(quote.ask_price4)
+                tick.ask_price_5 = adjust_price(quote.ask_price5)
+
+                tick.bid_volume_2 = quote.bid_volume2
+                tick.bid_volume_3 = quote.bid_volume3
+                tick.bid_volume_4 = quote.bid_volume4
+                tick.bid_volume_5 = quote.bid_volume5
+
+                tick.ask_volume_2 = quote.ask_volume2
+                tick.ask_volume_3 = quote.ask_volume3
+                tick.ask_volume_4 = quote.ask_volume4
+                tick.ask_volume_5 = quote.ask_volume5
+
+            # 推送行情数据
+            self.gateway.on_tick(tick)
+
+        except Exception as e:
+            self.gateway.write_log(f"TQSDK行情数据转换异常 [{symbol}]：{str(e)}")
+
+
+
+    def close(self) -> None:
+        """关闭连接"""
+        self.active = False
+
+        # 等待线程结束
+        if self.thread and self.thread.is_alive():
+            self.thread.join(timeout=5)
+            self.thread = None
+
+        # 关闭API
+        if self.api:
+            try:
+                self.api.close()
+            except Exception:
+                pass
+            self.api = None
+
+        # 清空数据
+        self.quotes.clear()
+        self.gateway.write_log("TQSDK行情连接已关闭")
+
+
 def adjust_price(price: float) -> float:
     """将异常的浮点数最大值（MAX_FLOAT）数据调整为0"""
     if price == MAX_FLOAT:
         price = 0
     return price
+
+def check_tqsdk(market_source: str):
+    # 根据配置选择行情源
+    if market_source == "TQSDK" and TQSDK_AVAILABLE:
+        return "TQSDK"
+    else:  # 默认使用TTS行情
+        return "TTS"
+
+# tick: TickData = TickData(
+            #     symbol=symbol,
+            #     exchange=exchange,
+            #     datetime=dt,
+            #     name=quote.instrument_name,
+            #     volume=quote.volume if hasattr(quote, 'volume') else 0,
+            #     turnover=quote.turnover if hasattr(quote, 'turnover') else 0,
+            #     open_interest=quote.open_interest if hasattr(quote, 'open_interest') else 0,
+            #     last_price=adjust_price(quote.last_price),
+            #     limit_up=quote.upper_limit if hasattr(quote, 'upper_limit') else 0,
+            #     limit_down=quote.lower_limit if hasattr(quote, 'lower_limit') else 0,
+            #     open_price=adjust_price(quote.open_price) if hasattr(quote, 'open_price') else 0,
+            #     high_price=adjust_price(quote.highest_price) if hasattr(quote, 'highest_price') else 0,
+            #     low_price=adjust_price(quote.lowest_price) if hasattr(quote, 'lowest_price') else 0,
+            #     pre_close=adjust_price(quote.pre_close) if hasattr(quote, 'pre_close') else 0,
+            #     bid_price_1=adjust_price(quote.bid_price1) if hasattr(quote, 'bid_price1') else 0,
+            #     ask_price_1=adjust_price(quote.ask_price1) if hasattr(quote, 'ask_price1') else 0,
+            #     bid_volume_1=quote.bid_volume1 if hasattr(quote, 'bid_volume1') else 0,
+            #     ask_volume_1=quote.ask_volume1 if hasattr(quote, 'ask_volume1') else 0,
+            #     gateway_name=self.gateway_name
+            # )
+
+# if hasattr(quote, 'bid_price2') and quote.bid_price2 != 0:
+#     tick.bid_price_2 = adjust_price(quote.bid_price2)
+#     tick.bid_price_3 = adjust_price(quote.bid_price3) if hasattr(quote, 'bid_price3') else 0
+#     tick.bid_price_4 = adjust_price(quote.bid_price4) if hasattr(quote, 'bid_price4') else 0
+#     tick.bid_price_5 = adjust_price(quote.bid_price5) if hasattr(quote, 'bid_price5') else 0
+#
+#     tick.ask_price_2 = adjust_price(quote.ask_price2)
+#     tick.ask_price_3 = adjust_price(quote.ask_price3) if hasattr(quote, 'ask_price3') else 0
+#     tick.ask_price_4 = adjust_price(quote.ask_price4) if hasattr(quote, 'ask_price4') else 0
+#     tick.ask_price_5 = adjust_price(quote.ask_price5) if hasattr(quote, 'ask_price5') else 0
+#
+#     tick.bid_volume_2 = quote.bid_volume2 if hasattr(quote, 'bid_volume2') else 0
+#     tick.bid_volume_3 = quote.bid_volume3 if hasattr(quote, 'bid_volume3') else 0
+#     tick.bid_volume_4 = quote.bid_volume4 if hasattr(quote, 'bid_volume4') else 0
+#     tick.bid_volume_5 = quote.bid_volume5 if hasattr(quote, 'bid_volume5') else 0
+#
+#     tick.ask_volume_2 = quote.ask_volume2 if hasattr(quote, 'ask_volume2') else 0
+#     tick.ask_volume_3 = quote.ask_volume3 if hasattr(quote, 'ask_volume3') else 0
+#     tick.ask_volume_4 = quote.ask_volume4 if hasattr(quote, 'ask_volume4') else 0
+#     tick.ask_volume_5 = quote.ask_volume5 if hasattr(quote, 'ask_volume5') else 0
