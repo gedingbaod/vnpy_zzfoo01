@@ -994,6 +994,10 @@ class TqSdkMdApi:
         self.subscribed: set = set()
         self.quotes: dict[str, Any] = {}  # 保存行情引用 {symbol: quote}
 
+        # 测试下单相关
+        self.order_placed: bool = False  # 是否已经下过单
+        self.order_ids: list[str] = []  # 记录订单ID
+
     def connect(self) -> None:
         """连接TQSDK"""
         try:
@@ -1008,6 +1012,9 @@ class TqSdkMdApi:
             self.gateway.write_log("TQSDK行情线程启动")
             for symbol in self.subscribed:
                 self._subscribe_symbol(symbol)
+
+            # 订阅ag2694
+            self._subscribe_symbol('ag2604')
 
         except Exception as e:
             self.gateway.write_log(f"TQSDK行情连接失败：{str(e)}")
@@ -1066,7 +1073,10 @@ class TqSdkMdApi:
                 for symbol, quote in self.quotes.items():
                     # 示例：移除值为偶数的键值对
                     # print(f"{local_time} symbol: {symbol} quote: {quote}")
-                    self._process_tick(symbol, quote)
+                    # self._process_tick(symbol, quote)
+                    # 下单
+                    self._order_ag2604(symbol, quote)
+
 
             except Exception as e:
                 if self.active:
@@ -1082,6 +1092,123 @@ class TqSdkMdApi:
                 self.gateway.write_log(f"TQSDK行情处理异常：{str(e)}")
             self.api = None
 
+    def _order_ag2604(self, symbol: str, quote: Quote):
+        """测试ag2604下单功能"""
+        # 只在ag2604上操作，且只下单一次
+        if symbol != "ag2604" or self.order_placed:
+            return
+
+        # 标记已下单，避免重复下单
+        self.order_placed = True
+
+        try:
+            # 获取合约信息
+            contract: ContractData | None = symbol_contract_map.get(symbol, None)
+            if not contract:
+                self.gateway.write_log(f"未找到合约{symbol}的合约信息")
+                return
+
+            # 获取当前价格
+            current_price = quote.last_price
+            if current_price <= 0:
+                self.gateway.write_log(f"获取{symbol}当前价格失败")
+                return
+
+            self.gateway.write_log(f"开始测试下单 {symbol}，当前价格: {current_price}")
+
+            # 下单1：买单（开仓）
+            req_buy: OrderRequest = OrderRequest(
+                symbol=symbol,
+                exchange=contract.exchange,
+                direction=Direction.LONG,
+                type=OrderType.MARKET,
+                volume=1,
+                price=0,  # 市价单价格设为0
+                offset=Offset.OPEN,
+                reference="test_buy"
+            )
+            order_id_buy: str = self.gateway.send_order(req_buy)
+            if order_id_buy:
+                self.order_ids.append(order_id_buy)
+                self.gateway.write_log(f"买单已发送: {order_id_buy}")
+            else:
+                self.gateway.write_log("买单发送失败")
+                return
+
+            # 下单2：卖单（开仓）
+            req_sell: OrderRequest = OrderRequest(
+                symbol=symbol,
+                exchange=contract.exchange,
+                direction=Direction.SHORT,
+                type=OrderType.MARKET,
+                volume=1,
+                price=0,  # 市价单价格设为0
+                offset=Offset.OPEN,
+                reference="test_sell"
+            )
+            order_id_sell: str = self.gateway.send_order(req_sell)
+            if order_id_sell:
+                self.order_ids.append(order_id_sell)
+                self.gateway.write_log(f"卖单已发送: {order_id_sell}")
+            else:
+                self.gateway.write_log("卖单发送失败")
+                return
+
+            # 启动定时器，10秒后平仓
+            def close_positions():
+                self.gateway.write_log("10秒已到，开始平仓...")
+                self._close_ag2604_positions(symbol, contract)
+
+            timer = Thread(target=lambda: (sleep(10), close_positions()))
+            timer.daemon = True
+            timer.start()
+            self.gateway.write_log("已启动10秒定时器，届时将自动平仓")
+
+        except Exception as e:
+            self.gateway.write_log(f"下单异常: {str(e)}")
+
+    def _close_ag2604_positions(self, symbol: str, contract: ContractData):
+        """平仓ag2604的持仓"""
+        try:
+            # 下平仓单：平多单（卖出平仓）
+            req_close_long: OrderRequest = OrderRequest(
+                symbol=symbol,
+                exchange=contract.exchange,
+                direction=Direction.SHORT,
+                type=OrderType.MARKET,
+                volume=1,
+                price=0,
+                offset=Offset.CLOSE,
+                reference="test_close_long"
+            )
+            order_id_close_long: str = self.gateway.send_order(req_close_long)
+            if order_id_close_long:
+                self.gateway.write_log(f"平多单已发送: {order_id_close_long}")
+            else:
+                self.gateway.write_log("平多单发送失败")
+
+            # 下平仓单：平空单（买入平仓）
+            req_close_short: OrderRequest = OrderRequest(
+                symbol=symbol,
+                exchange=contract.exchange,
+                direction=Direction.LONG,
+                type=OrderType.MARKET,
+                volume=1,
+                price=0,
+                offset=Offset.CLOSE,
+                reference="test_close_short"
+            )
+            order_id_close_short: str = self.gateway.send_order(req_close_short)
+            if order_id_close_short:
+                self.gateway.write_log(f"平空单已发送: {order_id_close_short}")
+            else:
+                self.gateway.write_log("平空单发送失败")
+
+            # 清空订单记录
+            self.order_ids.clear()
+
+        except Exception as e:
+            self.gateway.write_log(f"平仓异常: {str(e)}")
     def _process_tick(self, symbol: str, quote: Quote) -> None:
         """处理单个合约的行情数据"""
         if not self.api:
