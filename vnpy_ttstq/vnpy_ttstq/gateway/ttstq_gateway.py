@@ -5,7 +5,7 @@ import sys
 import os
 from datetime import datetime
 from time import sleep
-from threading import Thread
+from threading import Thread, Condition
 from typing import Any, Union
 
 from tqsdk.objs import Quote
@@ -190,6 +190,7 @@ class TtstqGateway(BaseGateway):
 
         self.count: int = 0
         self.market_source: str = "TTS"  # 默认使用TTS行情
+        self.update_pos_condition: Condition = Condition()
 
     def connect(self, setting: dict) -> None:
         """连接交易接口"""
@@ -506,6 +507,7 @@ class TtsTdApi(TdApi):
         self.order_data: list[dict] = []
         self.trade_data: list[dict] = []
         self.positions: dict[str, PositionData] = {}
+        self.positions_for_tqsdk: dict[str, PositionData] = {}
         self.sysid_orderid_map: dict[str, str] = {}
 
     def onFrontConnected(self) -> None:
@@ -600,7 +602,7 @@ class TtsTdApi(TdApi):
         # 必须已经收到了合约信息后才能处理
         symbol: str = data["InstrumentID"]
         contract: ContractData = symbol_contract_map.get(symbol, None)
-
+        # 因为每次收到数据是多条，通过last判断是不是最后一条，所以使用positions缓存所有数据，如果是最后一条再清空缓存
         if contract:
             # 获取之前缓存的持仓数据缓存
             key: str = f"{data['InstrumentID'], data['PosiDirection']}"
@@ -647,7 +649,13 @@ class TtsTdApi(TdApi):
             for position in self.positions.values():
                 self.gateway.on_position(position)
 
-            self.positions.clear()
+            # 这里已经清空，之后的处理是拿不到仓位数量的
+            # 所以要存入临时变量，供tqsdk调用
+            # 因为会有同步问题，所以加锁
+            with self.gateway.update_pos_condition:
+                self.positions_for_tqsdk.update(self.positions)
+                self.positions.clear()
+                self.gateway.update_pos_condition.notify()
 
     def onRspQryTradingAccount(self, data: dict, error: dict, reqid: int, last: bool) -> None:
         """资金查询回报"""
@@ -997,6 +1005,7 @@ class TqSdkMdApi:
         # 测试下单相关
         self.order_placed: bool = False  # 是否已经下过单
         self.order_ids: list[str] = []  # 记录订单ID
+        self.traded_vt_orderids: set = set()  # 已成交的订单ID集合
 
     def connect(self) -> None:
         """连接TQSDK"""
@@ -1073,7 +1082,8 @@ class TqSdkMdApi:
                 for symbol, quote in self.quotes.items():
                     # 示例：移除值为偶数的键值对
                     # print(f"{local_time} symbol: {symbol} quote: {quote}")
-                    # self._process_tick(symbol, quote)
+                    # 这个处理会再界面上显示实时的波动数据
+                    self._process_tick(symbol, quote)
                     # 下单
                     self._order_ag2604(symbol, quote)
 
@@ -1155,11 +1165,7 @@ class TqSdkMdApi:
                 return
 
             # 启动定时器，10秒后平仓
-            def close_positions():
-                self.gateway.write_log("10秒已到，开始平仓...")
-                self._close_ag2604_positions(symbol, contract)
-
-            timer = Thread(target=lambda: (sleep(10), close_positions()))
+            timer = Thread(target=self._delay_close_positions, args=(symbol, contract,))
             timer.daemon = True
             timer.start()
             self.gateway.write_log("已启动10秒定时器，届时将自动平仓")
@@ -1167,48 +1173,106 @@ class TqSdkMdApi:
         except Exception as e:
             self.gateway.write_log(f"下单异常: {str(e)}")
 
-    def _close_ag2604_positions(self, symbol: str, contract: ContractData):
-        """平仓ag2604的持仓"""
-        try:
-            # 下平仓单：平多单（卖出平仓）
-            req_close_long: OrderRequest = OrderRequest(
-                symbol=symbol,
-                exchange=contract.exchange,
-                direction=Direction.SHORT,
-                type=OrderType.MARKET,
-                volume=1,
-                price=0,
-                offset=Offset.CLOSE,
-                reference="test_close_long"
-            )
-            order_id_close_long: str = self.gateway.send_order(req_close_long)
-            if order_id_close_long:
-                self.gateway.write_log(f"平多单已发送: {order_id_close_long}")
-            else:
-                self.gateway.write_log("平多单发送失败")
+    def _delay_close_positions(self, symbol: str, contract: ContractData):
+        """延迟平仓的线程函数"""
+        sleep(10)  # 等待10秒
+        self.gateway.write_log("10秒已到，开始平仓...")
+        self._close_ag2604_positions(symbol, contract)
 
-            # 下平仓单：平空单（买入平仓）
-            req_close_short: OrderRequest = OrderRequest(
-                symbol=symbol,
-                exchange=contract.exchange,
-                direction=Direction.LONG,
-                type=OrderType.MARKET,
-                volume=1,
-                price=0,
-                offset=Offset.CLOSE,
-                reference="test_close_short"
-            )
-            order_id_close_short: str = self.gateway.send_order(req_close_short)
-            if order_id_close_short:
-                self.gateway.write_log(f"平空单已发送: {order_id_close_short}")
-            else:
-                self.gateway.write_log("平空单发送失败")
+    def _close_ag2604_positions(self, symbol: str, contract: ContractData):
+        """智能平仓ag2604的持仓，区分上期所今仓昨仓"""
+        try:
+            # 先查询持仓，获取持仓详情
+            self.gateway.query_position()
+
+
+            # 这里有update_pos_condition同步问题，所以加锁
+            with self.gateway.update_pos_condition:
+                self.gateway.update_pos_condition.wait()
+
+                # 从gateway的td_api获取持仓数据
+                td_api = self.gateway.td_api
+
+                # 获取多单持仓（Direction.LONG）
+                long_positions = [pos for pos in td_api.positions_for_tqsdk.values()
+                                if pos.symbol == symbol and pos.direction == Direction.LONG and pos.volume > 0]
+
+                # 获取空单持仓（Direction.SHORT）
+                short_positions = [pos for pos in td_api.positions_for_tqsdk.values()
+                                 if pos.symbol == symbol and pos.direction == Direction.SHORT and pos.volume > 0]
+                # 临时变量，用完即刻清空
+                td_api.positions_for_tqsdk.clear()
+
+            # 平多单
+            for pos in long_positions:
+                close_volume = pos.volume
+                if close_volume <= 0:
+                    continue
+
+                # 判断平仓offset：上期所需要区分今昨仓
+                if contract.exchange in [Exchange.SHFE, Exchange.INE]:
+                    # 如果有昨仓，先平昨仓；剩下的平今仓
+                    if pos.yd_volume > 0:
+                        close_yd_volume = min(pos.yd_volume, close_volume)
+                        self._send_close_order(symbol, contract, Direction.SHORT,
+                                              close_yd_volume, Offset.CLOSEYESTERDAY)
+                        close_volume -= close_yd_volume
+
+                    if close_volume > 0:
+                        self._send_close_order(symbol, contract, Direction.SHORT,
+                                              close_volume, Offset.CLOSETODAY)
+                else:
+                    # 非上期所，直接平仓
+                    self._send_close_order(symbol, contract, Direction.SHORT,
+                                          close_volume, Offset.CLOSE)
+
+            # 平空单
+            for pos in short_positions:
+                close_volume = pos.volume
+                if close_volume <= 0:
+                    continue
+
+                # 判断平仓offset：上期所需要区分今昨仓
+                if contract.exchange in [Exchange.SHFE, Exchange.INE]:
+                    # 如果有昨仓，先平昨仓；剩下的平今仓
+                    if pos.yd_volume > 0:
+                        close_yd_volume = min(pos.yd_volume, close_volume)
+                        self._send_close_order(symbol, contract, Direction.LONG,
+                                              close_yd_volume, Offset.CLOSEYESTERDAY)
+                        close_volume -= close_yd_volume
+
+                    if close_volume > 0:
+                        self._send_close_order(symbol, contract, Direction.LONG,
+                                              close_volume, Offset.CLOSETODAY)
+                else:
+                    # 非上期所，直接平仓
+                    self._send_close_order(symbol, contract, Direction.LONG,
+                                          close_volume, Offset.CLOSE)
 
             # 清空订单记录
             self.order_ids.clear()
 
         except Exception as e:
             self.gateway.write_log(f"平仓异常: {str(e)}")
+
+    def _send_close_order(self, symbol: str, contract: ContractData,
+                         direction: Direction, volume: int, offset: Offset):
+        """发送平仓订单"""
+        req: OrderRequest = OrderRequest(
+            symbol=symbol,
+            exchange=contract.exchange,
+            direction=direction,
+            type=OrderType.MARKET,
+            volume=volume,
+            price=0,
+            offset=offset,
+            reference=f"test_close_{offset.value}"
+        )
+        order_id: str = self.gateway.send_order(req)
+        if order_id:
+            self.gateway.write_log(f"平仓单已发送 [{direction.value} {offset.value} {volume}手]: {order_id}")
+        else:
+            self.gateway.write_log(f"平仓单发送失败 [{direction.value} {offset.value} {volume}手]")
     def _process_tick(self, symbol: str, quote: Quote) -> None:
         """处理单个合约的行情数据"""
         if not self.api:
