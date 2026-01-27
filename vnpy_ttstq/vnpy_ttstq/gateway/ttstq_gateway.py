@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import sys
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from time import sleep
 from threading import Thread, Condition
 from typing import Any, Union
@@ -158,6 +158,11 @@ CHINA_TZ = ZoneInfo("Asia/Shanghai")       # 中国时区
 
 # 合约数据全局缓存字典
 symbol_contract_map: dict[str, ContractData] = {}
+
+# 差价交易
+ag_upper_band = 100
+ag_middle_band = 35
+ag_lower_band = -30
 
 
 class TtstqGateway(BaseGateway):
@@ -741,8 +746,10 @@ class TtsTdApi(TdApi):
         sessionid: int = data["SessionID"]
         order_ref: str = data["OrderRef"]
         orderid: str = f"{frontid}_{sessionid}_{order_ref}"
+
         time_order = get_now()
         self.gateway.write_log(f'获取到订单的时间：{time_order} 订单ID：{orderid} 订单状态：{STATUS_TTS2VT[data["OrderStatus"]]}')
+
         timestamp: str = f"{data['InsertDate']} {data['InsertTime']}"
         dt: datetime = datetime.strptime(timestamp, "%Y%m%d %H:%M:%S")
         dt = dt.replace(tzinfo=CHINA_TZ)
@@ -1035,6 +1042,7 @@ class TqSdkMdApi:
 
             # 订阅ag2694
             self._subscribe_symbol('ag2604')
+            self._subscribe_symbol('ag2606')
 
         except Exception as e:
             self.gateway.write_log(f"TQSDK行情连接失败：{str(e)}")
@@ -1084,10 +1092,32 @@ class TqSdkMdApi:
 
     def _run(self) -> None:
         """行情接收线程"""
+        time_sync: bool = True
         while self.active:
             try:
                 # 等待行情推送
                 self.api.wait_update()
+
+                near_quote: Quote = self.quotes['ag2604']
+                far_quote: Quote = self.quotes['ag2606']
+
+                # near_datetime_str格式：2025-12-17 22:28:03.500000
+                # near_time_str格式：22:28:03.500000
+                # 去除fartime秒后面的5个0（字符串切片：去掉最后5个字符） 结果："13:30:00.5"
+                near_time_processed = str(near_quote.datetime)[:-5]
+                far_time_processed = str(far_quote.datetime)[:-5]
+
+                near_time = datetime.strptime(near_time_processed, '%Y-%m-%d %H:%M:%S.%f')
+                far_time = datetime.strptime(far_time_processed, '%Y-%m-%d %H:%M:%S.%f')
+                # 关键：带精度容错判断是否为0.5秒（避免浮点数精度问题）
+                if abs(near_time - far_time) > timedelta(milliseconds=500):
+                    # 相差0.5秒以上，不符合交易条件
+                    time_sync = False
+                else:
+                    time_sync = True
+
+                if near_quote.last_price and far_quote.last_price and time_sync:
+                    self._spread_ag2604_ag2606(near_quote, far_quote)
 
                 # 处理所有已订阅合约的行情
                 for symbol, quote in self.quotes.items():
@@ -1101,9 +1131,10 @@ class TqSdkMdApi:
                     # 这个处理会再界面上显示实时的波动数据
                     self._process_tick(symbol, quote)
                     # 下单
-                    time_end = get_now()
-                    self.gateway.write_log(f"准备下单: {time_end} ")
-                    self._order_ag2604(symbol, quote)
+                    # time_end = get_now()
+                    # self.gateway.write_log(f"准备下单: {time_end} ")
+                    #self._order_ag2604(symbol, quote)
+
 
 
             except Exception as e:
@@ -1119,6 +1150,32 @@ class TqSdkMdApi:
             except Exception:
                 self.gateway.write_log(f"TQSDK行情处理异常：{str(e)}")
             self.api = None
+
+    def _spread_ag2604_ag2606(self, near_quote: Quote, far_quote: Quote) -> None:
+        # 在这里做差价交易，差价为
+        # ag_upper_band = 100
+        # ag_middle_band = 35
+        # ag_lower_band = -30
+        # 交易策略：
+        # 1、做空差价为 real_short_spread = near_quote.bid_price1 - far_quote.ask_price1
+        # 2、做多差价为 real_long_spread = near_quote.ask_price1 - far_quote.bid_price1
+        # 3、当real_short_spread高于ag_upper_band，卖出near_quote，买入far_quote
+        # 4、当real_long_spread低于ag_lower_band，买入near_quote，卖出far_quote
+        # 5、当持有做空差价的持仓时，real_long_spread达到ag_middle_band，就平仓
+        # 6、当持有做多差价的持仓时，real_short_spread达到ag_middle_band，就平仓
+        # 7、ag2604、ag2606的波动单位是1
+        # 8、要考虑到滑点和交易手续费
+        # 9、只成交一条腿的情况（实时监控，未成交的取消订单，成交的直接平仓）
+        # 10、涨停跌停时，无法交易（大于涨停、跌停价格的80%，停止交易）
+        # 11、交易手数变动暂时设置为1手，后期可调整
+        # 12、下单使用市价成交OrderType.MARKET
+        # 13、平仓使用平今Offset.CLOSETODAY，交易只在当天，当天交易最后5分钟，如果有持仓也平仓，最后5分钟不再交易。
+
+        # 做空差价
+        real_short_spread = near_quote.bid_price1 - far_quote.ask_price1
+        # 做多差价
+        real_long_spread = near_quote.ask_price1 - far_quote.bid_price1
+
 
     def _order_ag2604(self, symbol: str, quote: Quote):
         """测试ag2604下单功能"""
