@@ -90,7 +90,7 @@ def run_child() -> None:
 
     event_engine: EventEngine = EventEngine()
     main_engine: MainEngine = MainEngine(event_engine)
-
+    logger.info("主引擎创建成功")
 
     # 这三个只能留一个，不然会报错
     if CONN == 'CTP':
@@ -110,15 +110,12 @@ def run_child() -> None:
         main_engine.connect(tss_setting, CONN)
     else:
         exit(0)
+    logger.info("连接CTP接口完成")
 
     cta_engine: CtaEngine = main_engine.add_app(CtaStrategyApp)
-    logger.info("主引擎创建成功")
-
     log_engine: LogEngine = main_engine.get_engine("log")
     event_engine.register(EVENT_CTA_LOG, log_engine.process_log_event)
     logger.info("注册日志事件监听")
-
-    logger.info("连接CTP接口完成")
 
     sleep(10)
 

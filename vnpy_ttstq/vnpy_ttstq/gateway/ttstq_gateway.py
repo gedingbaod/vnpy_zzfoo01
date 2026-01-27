@@ -289,11 +289,13 @@ class TtstqGateway(BaseGateway):
 
     def process_timer_event(self, event: Event) -> None:
         """定时事件处理"""
+        # 调用两次，实际执行一次
         self.count += 1
         if self.count < 2:
             return
         self.count = 0
 
+        # 0是query_account, 1是query_position
         func = self.query_functions.pop(0)
         func()
         self.query_functions.append(func)

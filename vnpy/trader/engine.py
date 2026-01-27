@@ -56,7 +56,7 @@ class BaseEngine(ABC):
     @abstractmethod
     def __init__(
         self,
-        main_engine: "MainEngine",
+        main_engine: "MainEngine",  # 双引号可以定位未知的，还没有定义的类
         event_engine: EventEngine,
         engine_name: str,
     ) -> None:
