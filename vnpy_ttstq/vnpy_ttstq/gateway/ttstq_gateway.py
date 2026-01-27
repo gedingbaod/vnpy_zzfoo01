@@ -11,7 +11,7 @@ from typing import Any, Union
 from tqsdk.objs import Quote
 
 from common.account.tq_account import tq_auth
-from common.vnpy_time import datetime_format
+from common.vnpy_time import datetime_format, get_now
 from vnpy.event.engine import EventEngine
 from pathlib import Path
 
@@ -557,6 +557,9 @@ class TtsTdApi(TdApi):
 
     def onRspOrderInsert(self, data: dict, error: dict, reqid: int, last: bool) -> None:
         """委托下单失败回报"""
+        time_get = get_now()
+        self.gateway.write_log(f"收到CTP回调时间:{time_get}")
+
         order_ref: str = data["OrderRef"]
         orderid: str = f"{self.frontid}_{self.sessionid}_{order_ref}"
 
@@ -738,7 +741,8 @@ class TtsTdApi(TdApi):
         sessionid: int = data["SessionID"]
         order_ref: str = data["OrderRef"]
         orderid: str = f"{frontid}_{sessionid}_{order_ref}"
-
+        time_order = get_now()
+        self.gateway.write_log(f'获取到订单的时间：{time_order} 订单ID：{orderid} 订单状态：{STATUS_TTS2VT[data["OrderStatus"]]}')
         timestamp: str = f"{data['InsertDate']} {data['InsertTime']}"
         dt: datetime = datetime.strptime(timestamp, "%Y%m%d %H:%M:%S")
         dt = dt.replace(tzinfo=CHINA_TZ)
@@ -757,6 +761,9 @@ class TtsTdApi(TdApi):
             datetime=dt,
             gateway_name=self.gateway_name
         )
+        time_order = get_now()
+        self.gateway.write_log(
+            f'整理订单时间：{time_order} 订单信息：{order}')
         self.gateway.on_order(order)
 
         self.sysid_orderid_map[data["OrderSysID"]] = orderid
@@ -904,6 +911,8 @@ class TtsTdApi(TdApi):
             tts_req["VolumeCondition"] = THOST_FTDC_VC_CV
 
         self.reqid += 1
+        time_send = get_now()
+        self.gateway.write_log(f"CTP接口下单时间:{time_send} ")
         self.reqOrderInsert(tts_req, self.reqid)
 
         orderid: str = f"{self.frontid}_{self.sessionid}_{self.order_ref}"
@@ -1084,9 +1093,16 @@ class TqSdkMdApi:
                 for symbol, quote in self.quotes.items():
                     # 示例：移除值为偶数的键值对
                     # print(f"{local_time} symbol: {symbol} quote: {quote}")
+
+                    if not quote.last_price or not quote.datetime:
+                        self.gateway.write_log("quote数据无效")
+                        continue
+
                     # 这个处理会再界面上显示实时的波动数据
                     self._process_tick(symbol, quote)
                     # 下单
+                    time_end = get_now()
+                    self.gateway.write_log(f"准备下单: {time_end} ")
                     self._order_ag2604(symbol, quote)
 
 
@@ -1139,7 +1155,11 @@ class TqSdkMdApi:
                 offset=Offset.OPEN,
                 reference="test_buy"
             )
+            time_begin = get_now()
             order_id_buy: str = self.gateway.send_order(req_buy)
+            time_end = get_now()
+            self.gateway.write_log(f"下单时间:{time_begin} - {time_end} ")
+
             if order_id_buy:
                 self.order_ids.append(order_id_buy)
                 self.gateway.write_log(f"买单已发送: {order_id_buy}")
@@ -1158,7 +1178,10 @@ class TqSdkMdApi:
                 offset=Offset.OPEN,
                 reference="test_sell"
             )
+            time_begin = get_now()
             order_id_sell: str = self.gateway.send_order(req_sell)
+            time_end = get_now()
+            self.gateway.write_log(f"下单时间:{time_begin} - {time_end}")
             if order_id_sell:
                 self.order_ids.append(order_id_sell)
                 self.gateway.write_log(f"卖单已发送: {order_id_sell}")
