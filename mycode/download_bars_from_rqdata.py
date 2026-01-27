@@ -86,9 +86,9 @@ def main(csv_path):
             # log_write(f"索引：{idx+1} 总数：{total} | 交易所：{exchange} "
             #           f"| 合约代码：{sec_id} | 上市日期：{listed_date} | 退市日期：{delisted_date}")
 
-            vnpy_data_process(sec_id, exchange, listed_date, delisted_date, Interval.MINUTE)
-            vnpy_data_process(sec_id, exchange, listed_date, delisted_date, Interval.HOUR)
             vnpy_data_process(sec_id, exchange, listed_date, delisted_date, Interval.DAILY)
+            vnpy_data_process(sec_id, exchange, listed_date, delisted_date, Interval.HOUR)
+            vnpy_data_process(sec_id, exchange, listed_date, delisted_date, Interval.MINUTE)
 
             # if not check_loaded(symbol=sec_id, exchange=exchange, list_loaded=list_loaded):
             #     log_write(f"{sec_id}.{exchange} 未下载")
