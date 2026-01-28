@@ -2,16 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import sys
-import os
-from datetime import datetime, timedelta
+from datetime import datetime
 from time import sleep
 from threading import Thread, Condition
 from typing import Any, Union
-
-from tqsdk.objs import Quote
-
-from common.account.tq_account import tq_auth
-from common.vnpy_time import datetime_format, get_now
+# from vnpy.trader.gateway import BaseGateway
+from common.gateway_tq import BaseGatewayTq, MARKET_SOURCE_TQSDK, MARKET_SOURCE_TTS
+from common.vnpy_time import get_now
+from common.tqsdk_gateway import TqSdkMdApi  # 从common导入TQSDK行情API
 from vnpy.event.engine import EventEngine
 from pathlib import Path
 
@@ -24,7 +22,7 @@ from vnpy.trader.constant import (
     Status,
     OptionType
 )
-from vnpy.trader.gateway import BaseGateway
+
 from vnpy.trader.object import (
     TickData,
     OrderData,
@@ -39,12 +37,6 @@ from vnpy.trader.object import (
 from vnpy.trader.utility import get_folder_path, ZoneInfo
 from vnpy.trader.event import EVENT_TIMER
 from vnpy.event import Event
-
-try:
-    from tqsdk import TqApi, TqAuth
-    TQSDK_AVAILABLE = True
-except ImportError:
-    TQSDK_AVAILABLE = False
 
 from ..api import (
     MdApi,
@@ -159,18 +151,13 @@ CHINA_TZ = ZoneInfo("Asia/Shanghai")       # 中国时区
 # 合约数据全局缓存字典
 symbol_contract_map: dict[str, ContractData] = {}
 
-# 差价交易
-ag_upper_band = 100
-ag_middle_band = 35
-ag_lower_band = -30
 
-
-class TtstqGateway(BaseGateway):
+class TtstqGateway(BaseGatewayTq):
     """
     VeighNa用于对接期货TTS柜台的交易接口。
     """
 
-    default_name: str = "TTS"
+    default_name: str = MARKET_SOURCE_TTS
 
     default_setting: dict[str, str] = {
         "用户名": "",
@@ -180,7 +167,7 @@ class TtstqGateway(BaseGateway):
         "行情服务器": "",
         "产品名称": "",
         "授权编码": "",
-        "行情源": "TTS",  # TTS 或 TQSDK
+        "行情源": MARKET_SOURCE_TTS,  # TTS 或 TQSDK，界面启动时，会读取默认参数，用于初始化对话框中的属性
     }
 
     exchanges: list[str] = list(EXCHANGE_TTS2VT.values())
@@ -191,11 +178,8 @@ class TtstqGateway(BaseGateway):
 
         self.td_api: TtsTdApi = TtsTdApi(self)
         self.md_api: TtsMdApi = TtsMdApi(self)
-        self.tq_md_api: Union[TqSdkMdApi, None] = None  # TQSDK行情API
 
         self.count: int = 0
-        self.market_source: str = "TTS"  # 默认使用TTS行情
-        self.update_pos_condition: Condition = Condition()
 
     def connect(self, setting: dict) -> None:
         """连接交易接口"""
@@ -206,9 +190,7 @@ class TtstqGateway(BaseGateway):
         md_address: str = setting["行情服务器"]
         appid: str = setting["产品名称"]
         auth_code: str = setting["授权编码"]
-        market_source: str = setting.get("行情源", "TTS")  # 获取行情源配置
-        # market_source = check_tqsdk(market_source)
-
+        market_source: str = setting.get("行情源", MARKET_SOURCE_TTS)  # 获取行情源配置，默认是TTS
         self.market_source = market_source.upper()  # 保存行情源配置
 
         if (
@@ -226,29 +208,30 @@ class TtstqGateway(BaseGateway):
         # 连接交易接口
         self.td_api.connect(td_address, userid, password, brokerid, auth_code, appid)
 
-        # 根据配置选择行情源
-        if self.market_source == "TQSDK":
-            if not TQSDK_AVAILABLE:
-                self.write_log("警告：未安装tqsdk库，无法使用TQSDK行情源，将使用TTS行情源")
-                self.market_source = "TTS"
+        # 枷锁，等待td_api更新完行情源，再进行tqsdk的连接
+        with self.update_map_condition:
+            self.update_map_condition.wait()
+            # 根据配置选择行情源
+            if self.market_source == MARKET_SOURCE_TQSDK:
+                if not self.tqsdk_available:
+                    self.write_log("警告：未安装tqsdk库，无法使用TQSDK行情源，将使用TTS行情源")
+                    self.market_source = MARKET_SOURCE_TTS
+                    self.md_api.connect(md_address, userid, password, brokerid)
+                else:
+                    self.tq_md_api = TqSdkMdApi(self)
+                    # 连接之前，默认是TTS，tq_md_api.subscribed为空，但是会有订阅输入
+                    # 所以在TQSDK连接时，把这部分订阅，加入到TQSDK的订阅里
+                    # TQSDK会在连接后，把这部分订阅执行
+                    self.tq_md_api.subscribed.update(self.md_api.subscribed)
+                    self.tq_md_api.connect()
+            else:  # 默认使用TTS行情
                 self.md_api.connect(md_address, userid, password, brokerid)
-            else:
-                self.tq_md_api = TqSdkMdApi(self)
-                # 连接之前，默认是TTS，tq_md_api.subscribed为空，但是会有订阅输入
-                # 所以在TQSDK连接时，把这部分订阅，加入到TQSDK的订阅里
-                # TQSDK会在连接后，把这部分订阅执行
-                self.tq_md_api.subscribed.update(self.md_api.subscribed)
-                self.tq_md_api.connect()
-
-        else:  # 默认使用TTS行情
-            self.md_api.connect(md_address, userid, password, brokerid)
 
         self.init_query()
 
     def subscribe(self, req: SubscribeRequest) -> None:
         """订阅行情"""
-        # if self.market_source == "TQSDK" and self.tq_md_api:
-        if self.market_source == "TQSDK":
+        if self.market_source == MARKET_SOURCE_TQSDK and self.tq_md_api:
             self.tq_md_api.subscribe(req)
         else:  # 默认使用TTS行情
             self.md_api.subscribe(req)
@@ -280,7 +263,7 @@ class TtstqGateway(BaseGateway):
         self.td_api.close()
 
         # 根据行情源关闭相应的行情API
-        if self.market_source == "TQSDK" and self.tq_md_api:
+        if self.market_source == MARKET_SOURCE_TQSDK and self.tq_md_api:
             self.tq_md_api.close()
         else:
             self.md_api.close()
@@ -306,7 +289,7 @@ class TtstqGateway(BaseGateway):
         self.query_functions.append(func)
 
         # 根据行情源更新日期
-        if self.market_source == "TQSDK" and self.tq_md_api:
+        if self.market_source == MARKET_SOURCE_TQSDK and self.tq_md_api:
             pass  # TQSDK不需要更新日期
         else:
             self.md_api.update_date()
@@ -514,7 +497,6 @@ class TtsTdApi(TdApi):
         self.order_data: list[dict] = []
         self.trade_data: list[dict] = []
         self.positions: dict[str, PositionData] = {}
-        self.positions_for_tqsdk: dict[str, PositionData] = {}
         self.sysid_orderid_map: dict[str, str] = {}
 
     def onFrontConnected(self) -> None:
@@ -602,7 +584,7 @@ class TtsTdApi(TdApi):
             if not n:
                 break
             else:
-                sleep(1)
+                asyncio.sleep(1)
 
     def onRspQryInvestorPosition(self, data: dict, error: dict, reqid: int, last: bool) -> None:
         """持仓查询回报"""
@@ -663,7 +645,7 @@ class TtsTdApi(TdApi):
             # 所以要存入临时变量，供tqsdk调用
             # 因为会有同步问题，所以加锁
             with self.gateway.update_pos_condition:
-                self.positions_for_tqsdk.update(self.positions)
+                self.gateway.positions_for_tqsdk.update(self.positions)
                 self.positions.clear()
                 self.gateway.update_pos_condition.notify()
 
@@ -725,6 +707,12 @@ class TtsTdApi(TdApi):
             self.contract_inited = True
             self.gateway.write_log("合约信息查询成功")
 
+            # 因为会有同步问题，所以加锁，等待更新合约后，再连接TQSDK
+            with self.gateway.update_map_condition:
+                # 更新合约到TQSDK
+                self.gateway.symbol_contract_map_tqsdk.update(symbol_contract_map)
+                self.gateway.update_map_condition.notify()
+
             for data in self.order_data:
                 self.onRtnOrder(data)
             self.order_data.clear()
@@ -772,6 +760,11 @@ class TtsTdApi(TdApi):
         self.gateway.write_log(
             f'整理订单时间：{time_order} 订单信息：{order}')
         self.gateway.on_order(order)
+
+        # 通知TqSdkMdApi订单状态更新（用于套利策略）
+        vt_orderid: str = f"{self.gateway_name}.{orderid}"
+        if self.gateway.tq_md_api:
+            self.gateway.tq_md_api.on_order_status_update(vt_orderid, order.status)
 
         self.sysid_orderid_map[data["OrderSysID"]] = orderid
 
@@ -1001,518 +994,8 @@ class TtsTdApi(TdApi):
             self.exit()
 
 
-class TqSdkMdApi:
-    """
-    TQSDK行情API类，用于从tqsdk订阅期货合约行情
-    初始化和连接是分两步的
-    初始化是在系统启动，创建对象时
-    连接实在窗口调用连接时，这个和行情订阅有关
-    """
-    def __init__(self, gateway: TtstqGateway) -> None:
-        """构造函数"""
-        self.gateway: TtstqGateway = gateway
-        self.gateway_name: str = gateway.gateway_name
-
-        self.api: TqApi | None = None
-        self.active: bool = False
-        self.thread: Thread | None = None
-        # 在未连接前，还无法订阅行情，此处保存要订阅的数据，连接之后会再调用一次订阅
-        self.subscribed: set = set()
-        self.quotes: dict[str, Any] = {}  # 保存行情引用 {symbol: quote}
-
-        # 测试下单相关
-        self.order_placed: bool = False  # 是否已经下过单
-        self.order_ids: list[str] = []  # 记录订单ID
-        self.traded_vt_orderids: set = set()  # 已成交的订单ID集合
-
-    def connect(self) -> None:
-        """连接TQSDK"""
-        try:
-            # 初始化TQSDK API
-            self.api = TqApi(auth=tq_auth)
-            self.gateway.write_log("TQSDK行情连接成功")
-
-            # 启动行情接收线程
-            self.active = True
-            self.thread = Thread(target=self._run)
-            self.thread.start()
-            self.gateway.write_log("TQSDK行情线程启动")
-            for symbol in self.subscribed:
-                self._subscribe_symbol(symbol)
-
-            # 订阅ag2694
-            self._subscribe_symbol('ag2604')
-            self._subscribe_symbol('ag2606')
-
-        except Exception as e:
-            self.gateway.write_log(f"TQSDK行情连接失败：{str(e)}")
-
-    def subscribe(self, req: SubscribeRequest) -> None:
-        """订阅行情"""
-        symbol: str = req.symbol
-
-        # 过滤重复的订阅
-        if symbol in self.subscribed:
-            return
-        # 订阅逻辑分已连接和未连接
-        # 已连接情况，订阅合约，加入订阅列表
-        # 未连接情况，只加入订阅列表，在连接后会再调用一次订阅
-        if self.active:
-            self._subscribe_symbol(req.symbol)
-        self.subscribed.add(req.symbol)
-
-    def _subscribe_symbol(self, symbol: str) -> None:
-        """订阅行情"""
-        # symbol: str = req.symbol
-
-        # 过滤重复的订阅
-        if symbol in self.quotes:
-            self.gateway.write_log(f"{symbol}已添加订阅，无需再次订阅")
-            return
-
-        # 从全局合约映射中获取合约信息
-        contract: ContractData | None = symbol_contract_map.get(symbol, None)
-        if not contract:
-            self.gateway.write_log(f"未找到合约{symbol}或行情未连接")
-            return
-
-        # 构造tqsdk格式的合约代码
-        tq_symbol: str = f"{contract.exchange.value}.{symbol}"
-
-        try:
-            # 获取行情引用（自动订阅）
-            quote = self.api.get_quote(tq_symbol)
-
-            # 保存行情引用
-            self.quotes[symbol] = quote
-            self.gateway.write_log(f"TQSDK订阅行情成功：{tq_symbol}")
-
-        except Exception as e:
-            self.gateway.write_log(f"TQSDK订阅行情失败 [{tq_symbol}]：{str(e)}")
-
-    def _run(self) -> None:
-        """行情接收线程"""
-        time_sync: bool = True
-        while self.active:
-            try:
-                # 等待行情推送
-                self.api.wait_update()
-
-                near_quote: Quote = self.quotes['ag2604']
-                far_quote: Quote = self.quotes['ag2606']
-
-                # near_datetime_str格式：2025-12-17 22:28:03.500000
-                # near_time_str格式：22:28:03.500000
-                # 去除fartime秒后面的5个0（字符串切片：去掉最后5个字符） 结果："13:30:00.5"
-                near_time_processed = str(near_quote.datetime)[:-5]
-                far_time_processed = str(far_quote.datetime)[:-5]
-
-                near_time = datetime.strptime(near_time_processed, '%Y-%m-%d %H:%M:%S.%f')
-                far_time = datetime.strptime(far_time_processed, '%Y-%m-%d %H:%M:%S.%f')
-                # 关键：带精度容错判断是否为0.5秒（避免浮点数精度问题）
-                if abs(near_time - far_time) > timedelta(milliseconds=500):
-                    # 相差0.5秒以上，不符合交易条件
-                    time_sync = False
-                else:
-                    time_sync = True
-
-                if near_quote.last_price and far_quote.last_price and time_sync:
-                    self._spread_ag2604_ag2606(near_quote, far_quote)
-
-                # 处理所有已订阅合约的行情
-                for symbol, quote in self.quotes.items():
-                    # 示例：移除值为偶数的键值对
-                    # print(f"{local_time} symbol: {symbol} quote: {quote}")
-
-                    if not quote.last_price or not quote.datetime:
-                        self.gateway.write_log("quote数据无效")
-                        continue
-
-                    # 这个处理会再界面上显示实时的波动数据
-                    self._process_tick(symbol, quote)
-                    # 下单
-                    # time_end = get_now()
-                    # self.gateway.write_log(f"准备下单: {time_end} ")
-                    #self._order_ag2604(symbol, quote)
-
-
-
-            except Exception as e:
-                if self.active:
-                    self.gateway.write_log(f"TQSDK行情处理异常：{str(e)}")
-                break
-
-        # 退出循环后关闭API
-        if self.api:
-            try:
-                self.api.close()
-                self.gateway.write_log(f"TQSDK连接关闭")
-            except Exception:
-                self.gateway.write_log(f"TQSDK行情处理异常：{str(e)}")
-            self.api = None
-
-    def _spread_ag2604_ag2606(self, near_quote: Quote, far_quote: Quote) -> None:
-        # 在这里做差价交易，差价为
-        # ag_upper_band = 100
-        # ag_middle_band = 35
-        # ag_lower_band = -30
-        # 交易策略：
-        # 1、做空差价为 real_short_spread = near_quote.bid_price1 - far_quote.ask_price1
-        # 2、做多差价为 real_long_spread = near_quote.ask_price1 - far_quote.bid_price1
-        # 3、当real_short_spread高于ag_upper_band，卖出near_quote，买入far_quote
-        # 4、当real_long_spread低于ag_lower_band，买入near_quote，卖出far_quote
-        # 5、当持有做空差价的持仓时，real_long_spread达到ag_middle_band，就平仓
-        # 6、当持有做多差价的持仓时，real_short_spread达到ag_middle_band，就平仓
-        # 7、ag2604、ag2606的波动单位是1
-        # 8、要考虑到滑点和交易手续费
-        # 9、只成交一条腿的情况（实时监控，未成交的取消订单，成交的直接平仓）
-        # 10、涨停跌停时，无法交易（大于涨停、跌停价格的80%，停止交易）
-        # 11、交易手数变动暂时设置为1手，后期可调整
-        # 12、下单使用市价成交OrderType.MARKET
-        # 13、平仓使用平今Offset.CLOSETODAY，交易只在当天，当天交易最后5分钟，如果有持仓也平仓，最后5分钟不再交易。
-
-        # 做空差价
-        real_short_spread = near_quote.bid_price1 - far_quote.ask_price1
-        # 做多差价
-        real_long_spread = near_quote.ask_price1 - far_quote.bid_price1
-
-
-    def _order_ag2604(self, symbol: str, quote: Quote):
-        """测试ag2604下单功能"""
-        # 只在ag2604上操作，且只下单一次
-        if symbol != "ag2604" or self.order_placed:
-            return
-
-        # 标记已下单，避免重复下单
-        self.order_placed = True
-
-        try:
-            # 获取合约信息
-            contract: ContractData | None = symbol_contract_map.get(symbol, None)
-            if not contract:
-                self.gateway.write_log(f"未找到合约{symbol}的合约信息")
-                return
-
-            # 获取当前价格
-            current_price = quote.last_price
-            if current_price <= 0:
-                self.gateway.write_log(f"获取{symbol}当前价格失败")
-                return
-
-            self.gateway.write_log(f"开始测试下单 {symbol}，当前价格: {current_price}")
-
-            # 下单1：买单（开仓）
-            req_buy: OrderRequest = OrderRequest(
-                symbol=symbol,
-                exchange=contract.exchange,
-                direction=Direction.LONG,
-                type=OrderType.MARKET,
-                volume=1,
-                price=0,  # 市价单价格设为0
-                offset=Offset.OPEN,
-                reference="test_buy"
-            )
-            time_begin = get_now()
-            order_id_buy: str = self.gateway.send_order(req_buy)
-            time_end = get_now()
-            self.gateway.write_log(f"下单时间:{time_begin} - {time_end} ")
-
-            if order_id_buy:
-                self.order_ids.append(order_id_buy)
-                self.gateway.write_log(f"买单已发送: {order_id_buy}")
-            else:
-                self.gateway.write_log("买单发送失败")
-                return
-
-            # 下单2：卖单（开仓）
-            req_sell: OrderRequest = OrderRequest(
-                symbol=symbol,
-                exchange=contract.exchange,
-                direction=Direction.SHORT,
-                type=OrderType.MARKET,
-                volume=1,
-                price=0,  # 市价单价格设为0
-                offset=Offset.OPEN,
-                reference="test_sell"
-            )
-            time_begin = get_now()
-            order_id_sell: str = self.gateway.send_order(req_sell)
-            time_end = get_now()
-            self.gateway.write_log(f"下单时间:{time_begin} - {time_end}")
-            if order_id_sell:
-                self.order_ids.append(order_id_sell)
-                self.gateway.write_log(f"卖单已发送: {order_id_sell}")
-            else:
-                self.gateway.write_log("卖单发送失败")
-                return
-
-            # 启动定时器，10秒后平仓
-            timer = Thread(target=self._delay_close_positions, args=(symbol, contract,))
-            timer.daemon = True
-            timer.start()
-            self.gateway.write_log("已启动10秒定时器，届时将自动平仓")
-
-        except Exception as e:
-            self.gateway.write_log(f"下单异常: {str(e)}")
-
-    def _delay_close_positions(self, symbol: str, contract: ContractData):
-        """延迟平仓的线程函数"""
-        sleep(10)  # 等待10秒
-        self.gateway.write_log("10秒已到，开始平仓...")
-        self._close_ag2604_positions(symbol, contract)
-
-    def _close_ag2604_positions(self, symbol: str, contract: ContractData):
-        """智能平仓ag2604的持仓，区分上期所今仓昨仓"""
-        try:
-            # 先查询持仓，获取持仓详情
-            self.gateway.query_position()
-
-
-            # 这里有update_pos_condition同步问题，所以加锁
-            with self.gateway.update_pos_condition:
-                self.gateway.update_pos_condition.wait()
-
-                # 从gateway的td_api获取持仓数据
-                td_api = self.gateway.td_api
-
-                # 获取多单持仓（Direction.LONG）
-                long_positions = [pos for pos in td_api.positions_for_tqsdk.values()
-                                if pos.symbol == symbol and pos.direction == Direction.LONG and pos.volume > 0]
-
-                # 获取空单持仓（Direction.SHORT）
-                short_positions = [pos for pos in td_api.positions_for_tqsdk.values()
-                                 if pos.symbol == symbol and pos.direction == Direction.SHORT and pos.volume > 0]
-                # 临时变量，用完即刻清空
-                td_api.positions_for_tqsdk.clear()
-
-            # 平多单
-            for pos in long_positions:
-                close_volume = pos.volume
-                if close_volume <= 0:
-                    continue
-
-                # 判断平仓offset：上期所需要区分今昨仓
-                if contract.exchange in [Exchange.SHFE, Exchange.INE]:
-                    # 如果有昨仓，先平昨仓；剩下的平今仓
-                    if pos.yd_volume > 0:
-                        close_yd_volume = min(pos.yd_volume, close_volume)
-                        self._send_close_order(symbol, contract, Direction.SHORT,
-                                              close_yd_volume, Offset.CLOSEYESTERDAY)
-                        close_volume -= close_yd_volume
-
-                    if close_volume > 0:
-                        self._send_close_order(symbol, contract, Direction.SHORT,
-                                              close_volume, Offset.CLOSETODAY)
-                else:
-                    # 非上期所，直接平仓
-                    self._send_close_order(symbol, contract, Direction.SHORT,
-                                          close_volume, Offset.CLOSE)
-
-            # 平空单
-            for pos in short_positions:
-                close_volume = pos.volume
-                if close_volume <= 0:
-                    continue
-
-                # 判断平仓offset：上期所需要区分今昨仓
-                if contract.exchange in [Exchange.SHFE, Exchange.INE]:
-                    # 如果有昨仓，先平昨仓；剩下的平今仓
-                    if pos.yd_volume > 0:
-                        close_yd_volume = min(pos.yd_volume, close_volume)
-                        self._send_close_order(symbol, contract, Direction.LONG,
-                                              close_yd_volume, Offset.CLOSEYESTERDAY)
-                        close_volume -= close_yd_volume
-
-                    if close_volume > 0:
-                        self._send_close_order(symbol, contract, Direction.LONG,
-                                              close_volume, Offset.CLOSETODAY)
-                else:
-                    # 非上期所，直接平仓
-                    self._send_close_order(symbol, contract, Direction.LONG,
-                                          close_volume, Offset.CLOSE)
-
-            # 清空订单记录
-            self.order_ids.clear()
-
-        except Exception as e:
-            self.gateway.write_log(f"平仓异常: {str(e)}")
-
-    def _send_close_order(self, symbol: str, contract: ContractData,
-                         direction: Direction, volume: int, offset: Offset):
-        """发送平仓订单"""
-        req: OrderRequest = OrderRequest(
-            symbol=symbol,
-            exchange=contract.exchange,
-            direction=direction,
-            type=OrderType.MARKET,
-            volume=volume,
-            price=0,
-            offset=offset,
-            reference=f"test_close_{offset.value}"
-        )
-        order_id: str = self.gateway.send_order(req)
-        if order_id:
-            self.gateway.write_log(f"平仓单已发送 [{direction.value} {offset.value} {volume}手]: {order_id}")
-        else:
-            self.gateway.write_log(f"平仓单发送失败 [{direction.value} {offset.value} {volume}手]")
-    def _process_tick(self, symbol: str, quote: Quote) -> None:
-        """处理单个合约的行情数据"""
-        if not self.api:
-            return
-
-        try:
-            # 从保存的行情引用中获取quote
-            # quote = self.quotes.get(symbol)
-            # if not quote:
-            #     return
-
-            # # 使用is_changing检查行情是否有变化
-            # if not self.api.is_changing(quote):
-            #     return
-
-            # 检查行情数据是否有效
-            if not quote.datetime:
-                return
-
-            # # 从全局合约映射中获取合约信息
-            # contract: ContractData | None = symbol_contract_map.get(symbol, None)
-            # if not contract:
-            #     return
-            #
-            # # 转换时间为vnpy格式
-            # dt: datetime = datetime.fromtimestamp(quote.datetime / 1e9, tz=CHINA_TZ)
-
-            exchange, _, symbol = quote.instrument_id.partition('.')
-
-            dt = datetime_format(quote.datetime)
-
-            # 构造TickData对象
-            tick: TickData = TickData(
-                symbol=symbol,
-                exchange=EXCHANGE_TTS2VT[exchange],
-                datetime=dt,
-                name=quote.instrument_name,
-                volume=quote.volume,
-                turnover=quote.amount,
-                open_interest=quote.open_interest,
-                last_price=adjust_price(quote.last_price),
-                limit_up=quote.upper_limit,
-                limit_down=quote.lower_limit,
-                open_price=adjust_price(quote.open),
-                high_price=adjust_price(quote.highest),
-                low_price=adjust_price(quote.lowest),
-                pre_close=adjust_price(quote.pre_close),
-                bid_price_1=adjust_price(quote.bid_price1),
-                ask_price_1=adjust_price(quote.ask_price1),
-                bid_volume_1=quote.bid_volume1,
-                ask_volume_1=quote.ask_volume1,
-                gateway_name=self.gateway_name
-            )
-
-            # 如果有五档行情，也设置
-            if quote.bid_volume2 or quote.ask_volume2:
-                tick.bid_price_2 = adjust_price(quote.bid_price2)
-                tick.bid_price_3 = adjust_price(quote.bid_price3)
-                tick.bid_price_4 = adjust_price(quote.bid_price4)
-                tick.bid_price_5 = adjust_price(quote.bid_price5)
-
-                tick.ask_price_2 = adjust_price(quote.ask_price2)
-                tick.ask_price_3 = adjust_price(quote.ask_price3)
-                tick.ask_price_4 = adjust_price(quote.ask_price4)
-                tick.ask_price_5 = adjust_price(quote.ask_price5)
-
-                tick.bid_volume_2 = quote.bid_volume2
-                tick.bid_volume_3 = quote.bid_volume3
-                tick.bid_volume_4 = quote.bid_volume4
-                tick.bid_volume_5 = quote.bid_volume5
-
-                tick.ask_volume_2 = quote.ask_volume2
-                tick.ask_volume_3 = quote.ask_volume3
-                tick.ask_volume_4 = quote.ask_volume4
-                tick.ask_volume_5 = quote.ask_volume5
-
-            # 推送行情数据
-            self.gateway.on_tick(tick)
-
-        except Exception as e:
-            self.gateway.write_log(f"TQSDK行情数据转换异常 [{symbol}]：{str(e)}")
-
-
-
-    def close(self) -> None:
-        """关闭连接"""
-        self.active = False
-
-        # 等待线程结束
-        if self.thread and self.thread.is_alive():
-            self.thread.join(timeout=5)
-            self.thread = None
-
-        # 关闭API
-        if self.api:
-            try:
-                self.api.close()
-            except Exception:
-                pass
-            self.api = None
-
-        # 清空数据
-        self.quotes.clear()
-        self.gateway.write_log("TQSDK行情连接已关闭")
-
-
 def adjust_price(price: float) -> float:
     """将异常的浮点数最大值（MAX_FLOAT）数据调整为0"""
     if price == MAX_FLOAT:
         price = 0
     return price
-
-def check_tqsdk(market_source: str):
-    # 根据配置选择行情源
-    if market_source == "TQSDK" and TQSDK_AVAILABLE:
-        return "TQSDK"
-    else:  # 默认使用TTS行情
-        return "TTS"
-
-# tick: TickData = TickData(
-            #     symbol=symbol,
-            #     exchange=exchange,
-            #     datetime=dt,
-            #     name=quote.instrument_name,
-            #     volume=quote.volume if hasattr(quote, 'volume') else 0,
-            #     turnover=quote.turnover if hasattr(quote, 'turnover') else 0,
-            #     open_interest=quote.open_interest if hasattr(quote, 'open_interest') else 0,
-            #     last_price=adjust_price(quote.last_price),
-            #     limit_up=quote.upper_limit if hasattr(quote, 'upper_limit') else 0,
-            #     limit_down=quote.lower_limit if hasattr(quote, 'lower_limit') else 0,
-            #     open_price=adjust_price(quote.open_price) if hasattr(quote, 'open_price') else 0,
-            #     high_price=adjust_price(quote.highest_price) if hasattr(quote, 'highest_price') else 0,
-            #     low_price=adjust_price(quote.lowest_price) if hasattr(quote, 'lowest_price') else 0,
-            #     pre_close=adjust_price(quote.pre_close) if hasattr(quote, 'pre_close') else 0,
-            #     bid_price_1=adjust_price(quote.bid_price1) if hasattr(quote, 'bid_price1') else 0,
-            #     ask_price_1=adjust_price(quote.ask_price1) if hasattr(quote, 'ask_price1') else 0,
-            #     bid_volume_1=quote.bid_volume1 if hasattr(quote, 'bid_volume1') else 0,
-            #     ask_volume_1=quote.ask_volume1 if hasattr(quote, 'ask_volume1') else 0,
-            #     gateway_name=self.gateway_name
-            # )
-
-# if hasattr(quote, 'bid_price2') and quote.bid_price2 != 0:
-#     tick.bid_price_2 = adjust_price(quote.bid_price2)
-#     tick.bid_price_3 = adjust_price(quote.bid_price3) if hasattr(quote, 'bid_price3') else 0
-#     tick.bid_price_4 = adjust_price(quote.bid_price4) if hasattr(quote, 'bid_price4') else 0
-#     tick.bid_price_5 = adjust_price(quote.bid_price5) if hasattr(quote, 'bid_price5') else 0
-#
-#     tick.ask_price_2 = adjust_price(quote.ask_price2)
-#     tick.ask_price_3 = adjust_price(quote.ask_price3) if hasattr(quote, 'ask_price3') else 0
-#     tick.ask_price_4 = adjust_price(quote.ask_price4) if hasattr(quote, 'ask_price4') else 0
-#     tick.ask_price_5 = adjust_price(quote.ask_price5) if hasattr(quote, 'ask_price5') else 0
-#
-#     tick.bid_volume_2 = quote.bid_volume2 if hasattr(quote, 'bid_volume2') else 0
-#     tick.bid_volume_3 = quote.bid_volume3 if hasattr(quote, 'bid_volume3') else 0
-#     tick.bid_volume_4 = quote.bid_volume4 if hasattr(quote, 'bid_volume4') else 0
-#     tick.bid_volume_5 = quote.bid_volume5 if hasattr(quote, 'bid_volume5') else 0
-#
-#     tick.ask_volume_2 = quote.ask_volume2 if hasattr(quote, 'ask_volume2') else 0
-#     tick.ask_volume_3 = quote.ask_volume3 if hasattr(quote, 'ask_volume3') else 0
-#     tick.ask_volume_4 = quote.ask_volume4 if hasattr(quote, 'ask_volume4') else 0
-#     tick.ask_volume_5 = quote.ask_volume5 if hasattr(quote, 'ask_volume5') else 0
