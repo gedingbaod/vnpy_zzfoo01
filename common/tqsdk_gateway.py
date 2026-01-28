@@ -294,6 +294,9 @@ class TqSdkMdApi:
         self.gateway.write_log("TQSDK行情连接已关闭")
         print("TQSDK行情连接已关闭")
 
+        if self.spread_strategy.thread_active:
+            self.spread_strategy.stop()
+
     # ==================== 测试相关方法 ====================
 
     def _order_ag2604(self, symbol: str, quote: Quote) -> None:

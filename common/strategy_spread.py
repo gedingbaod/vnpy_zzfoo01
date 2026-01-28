@@ -5,14 +5,18 @@
 
 from __future__ import annotations
 
+import math
 import sys
+import threading
 from datetime import datetime, timedelta, time
 from time import sleep
 from threading import Thread
 from typing import Any, Union, Optional, TYPE_CHECKING, Dict
 
 from tqsdk.objs import Quote
+from zmq.backend import second
 
+from common.vnpy_time import split_cross_day_time
 from vnpy.trader.constant import Direction, Offset, Exchange, OrderType, Status
 from vnpy.trader.object import OrderRequest, CancelRequest, ContractData, SubscribeRequest
 
@@ -21,6 +25,8 @@ if TYPE_CHECKING:
 
 # 其他常量
 MAX_FLOAT = sys.float_info.max
+# 收盘前多少分钟停止交易
+CLOSE_BEFORE_MINUTE = 15
 
 
 def adjust_price(price: float) -> float:
@@ -77,6 +83,13 @@ class SpreadTradingStrategy:
         # 状态标志
         self.is_closing_time: bool = False  # 是否处于收盘前5分钟
         self.close_time_warned: bool = False  # 是否已经发出收盘警告
+        self.thread_active: bool = True  # 策略是否激活
+
+        # 启动收盘时间检查线程（每分钟检查一次）
+        # 创建Event对象，用于控制等待中断
+        self.interrupt_event = threading.Event()
+        self.closing_check_thread = Thread(target=self._check_closing_time_loop, daemon=True)
+        self.closing_check_thread.start()
 
     # await_update之后调用这个函数检查是否可以交易
     def check_and_run(self, quotes_sub: Dict[str, Quote]) -> None:
@@ -98,74 +111,59 @@ class SpreadTradingStrategy:
             远月合约行情
         """
 
-        # 检查收盘时间
-        if self._is_closing_time(near_quote):
-            self.is_closing_time = True
-            if not self.close_time_warned:
-                self.gateway.write_log("进入收盘前5分钟，停止新开仓")
-                self.close_time_warned = True
-            # 强制平仓
-            if self.spread_position:
-                self.gateway.write_log("收盘前强制平仓")
-                self.close_position(force=True)
+        # 如果处于收盘时间，不执行任何交易逻辑
+        if self.is_closing_time:
             return
 
-        # 计算价差
-        real_short_spread = near_quote.bid_price1 - far_quote.ask_price1
-        real_long_spread = near_quote.ask_price1 - far_quote.bid_price1
-        spread_cost = (near_quote.ask_price1 - near_quote.bid_price1) + \
-                     (far_quote.ask_price1 - far_quote.bid_price1)
+        try:
+            # 计算价差
+            real_short_spread = near_quote.bid_price1 - far_quote.ask_price1
+            real_long_spread = near_quote.ask_price1 - far_quote.bid_price1
+            spread_cost = (near_quote.ask_price1 - near_quote.bid_price1) + \
+                         (far_quote.ask_price1 - far_quote.bid_price1)
 
-        # 检查买卖价差成本
-        if spread_cost > self.max_spread_cost:
-            self.gateway.write_log(f"买卖价差成本过大: {spread_cost}，超过{self.max_spread_cost}，停止交易")
-            return
+            # 检查买卖价差成本
+            if spread_cost > self.max_spread_cost:
+                self.gateway.write_log(f"买卖价差成本过大: {spread_cost}，超过{self.max_spread_cost}，停止交易")
+                return
 
-        # 检查涨跌停
-        if self._check_price_limit(near_quote, far_quote):
-            return  # 接近涨跌停，停止交易
+            # 检查涨跌停
+            if self._check_price_limit(near_quote, far_quote):
+                return  # 接近涨跌停，停止交易
 
-        # 检查是否有待成交订单
-        if self.pending_orders:
-            self._check_pending_orders_timeout()
-            return  # 有待成交订单，等待成交或超时
+            # 检查是否有待成交订单
+            if self.pending_orders:
+                self._check_pending_orders_timeout()
+                return  # 有待成交订单，等待成交或超时
 
-        # 获取当前持仓类型
-        position_type = self._get_position_type()
+            # 获取当前持仓类型
+            position_type = self._get_position_type()
 
-        # 持仓管理
-        if position_type == "short_spread":
-            self._manage_short_spread_position(real_long_spread)
-        elif position_type == "long_spread":
-            self._manage_long_spread_position(real_short_spread)
-        elif position_type is None and not self.is_closing_time:
-            # 无持仓，检查开仓机会
-            self._check_open_opportunity(real_short_spread, real_long_spread)
+            # 持仓管理
+            if position_type == "short_spread":
+                self._manage_short_spread_position(real_long_spread)
+            elif position_type == "long_spread":
+                self._manage_long_spread_position(real_short_spread)
+            elif position_type is None and not self.is_closing_time:
+                # 无持仓，检查开仓机会
+                self._check_open_opportunity(real_short_spread, real_long_spread,near_quote, far_quote)
+        except Exception as e:
+            self.gateway.write_log(f"策略执行异常: {str(e)}")
 
-    def _check_open_opportunity(self, real_short_spread: float, real_long_spread: float) -> None:
+
+    def _check_open_opportunity(self, real_short_spread: float, real_long_spread: float,
+                                near_quote: Quote, far_quote: Quote) -> None:
         """检查开仓机会"""
         # 做空价差：价差过高
         if real_short_spread > self.upper_band:
+            self.open_short_spread(near_quote, far_quote, real_short_spread)
             self.gateway.write_log(f"做空价差开仓: {real_short_spread} > {self.upper_band}")
-
-            # 获取行情引用
-            near_quote = self.gateway.quotes.get(self.near_symbol)
-            far_quote = self.gateway.quotes.get(self.far_symbol)
-
-            if near_quote and far_quote:
-                self.open_short_spread(near_quote, far_quote, real_short_spread)
             return
 
         # 做多价差：价差过低
         if real_long_spread < self.lower_band:
+            self.open_long_spread(near_quote, far_quote, real_long_spread)
             self.gateway.write_log(f"做多价差开仓: {real_long_spread} < {self.lower_band}")
-
-            # 获取行情引用
-            near_quote = self.gateway.quotes.get(self.near_symbol)
-            far_quote = self.gateway.quotes.get(self.far_symbol)
-
-            if near_quote and far_quote:
-                self.open_long_spread(near_quote, far_quote, real_long_spread)
             return
 
     def _manage_short_spread_position(self, current_spread: float) -> None:
@@ -529,6 +527,15 @@ class SpreadTradingStrategy:
         except Exception as e:
             self.gateway.write_log(f"订单状态更新异常: {str(e)}")
 
+    def stop(self) -> None:
+        """停止策略"""
+        self.thread_active = False
+        # 打断interrupt_event.wait()等待
+        self.interrupt_event.set()
+        # 等待收盘检查线程结束
+        if hasattr(self, 'closing_check_thread') and self.closing_check_thread:
+            self.closing_check_thread.join(timeout=3)
+
     def _check_pending_orders_timeout(self) -> None:
         """检查待成交订单超时"""
         try:
@@ -721,27 +728,70 @@ class SpreadTradingStrategy:
         bool
             是否数据同步
         """
-        # quote.datetime格式：2025-12-17 22:28:03.500001
-        # 去除datetime秒后面的5个0（字符串切片：去掉最后5个字符） 结果："13:30:00.5"
-        near_time_processed = str(near_quote.datetime)[:-5]
-        far_time_processed = str(far_quote.datetime)[:-5]
+        try:
+            if near_quote.datetime=='' or near_quote.datetime=='':
+                return False
+            # quote.datetime格式：2025-12-17 22:28:03.500001
+            # 去除datetime秒后面的5个0（字符串切片：去掉最后5个字符） 结果："13:30:00.5"
+            near_time_processed = str(near_quote.datetime)[:-5]
+            far_time_processed = str(far_quote.datetime)[:-5]
 
-        near_time = datetime.strptime(near_time_processed, '%Y-%m-%d %H:%M:%S.%f')
-        far_time = datetime.strptime(far_time_processed, '%Y-%m-%d %H:%M:%S.%f')
+            near_time = datetime.strptime(near_time_processed, '%Y-%m-%d %H:%M:%S.%f')
+            far_time = datetime.strptime(far_time_processed, '%Y-%m-%d %H:%M:%S.%f')
 
-        # 关键：带精度容错判断是否为0.5秒（避免浮点数精度问题）
-        if abs(near_time - far_time) > timedelta(milliseconds=500):
-            # 要求时间戳同步（允许0.5秒误差）
-            return False
+            # 关键：带精度容错判断是否为0.5秒（避免浮点数精度问题）
+            if abs(near_time - far_time) > timedelta(milliseconds=500):
+                # 要求时间戳同步（允许0.5秒误差）
+                return False
 
-        # 要求两个合约都有价格数据
-        if not near_quote.last_price or not far_quote.last_price:
+            # 要求两个合约都有价格数据
+            if math.isnan(near_quote.last_price) or math.isnan(far_quote.last_price):
+                return False
+        except Exception as e:
+            self.gateway.write_log(f"检查数据同步异常: {str(e)}")
             return False
 
         return True
 
+    def _check_closing_time_loop(self) -> None:
+        """收盘时间检查循环（在独立线程中运行，每分钟检查一次）"""
+        while self.thread_active:
+            try:
+                # sleep(60)  # 每分钟检查一次
+                self.interrupt_event.wait(180)
 
+                # 获取near合约的行情
+                if self.near_symbol not in self.gateway.tq_md_api.quotes:
+                    continue
 
+                near_quote = self.gateway.tq_md_api.quotes[self.near_symbol]
+                if not near_quote or near_quote.datetime=='':
+                    continue
+
+                # 检查是否进入收盘时间
+                if self._is_closing_time(near_quote):
+                    if not self.is_closing_time:
+                        self.is_closing_time = True
+                        if not self.close_time_warned:
+                            self.gateway.write_log("进入收盘前5分钟，停止新开仓")
+                            self.close_time_warned = True
+
+                    # 强制平仓
+                    if self.spread_position:
+                        self.gateway.write_log("收盘前强制平仓")
+                        self.close_position(force=True)
+                else:
+                    # 已经不在收盘时间，重置标志
+                    if self.is_closing_time:
+                        self.gateway.write_log("已过收盘时间，恢复交易")
+                        self.is_closing_time = False
+                        self.close_time_warned = False
+
+            except Exception as e:
+                if self.thread_active:
+                    self.gateway.write_log(f"收盘时间检查异常: {str(e)}")
+                # break
+        print("收盘时间检查关闭")
 
     def _is_closing_time(self, quote: Quote) -> bool:
         """
@@ -757,26 +807,37 @@ class SpreadTradingStrategy:
         bool
             是否处于收盘前5分钟
         """
-        # 从Quote.trading_time获取交易时段
-        trading_time = quote.trading_time  # 格式: "9:00-15:00 21:00-2:30"
+        # 交易时段格式：'trading_time': {"day": [["09:00:00", "10:15:00"], ["10:30:00", "11:30:00"], ["13:30:00", "15:00:00"]], "night": [["21:00:00", "26:30:00"]]}
+        trading_time = quote.trading_time
         current_time = datetime.now().time()
 
-        # 解析交易时段
-        periods = trading_time.split()
-        for period in periods:
-            start_str, end_str = period.split('-')
-            start_time = time.fromisoformat(start_str)
-            end_time = time.fromisoformat(end_str)
+        # 遍历所有交易时段（day和night）
+        for period_type in ["day", "night"]:
+            if period_type not in trading_time:
+                continue
 
-            # 判断是否在收盘前5分钟
-            if end_time >= time(2, 0):  # 夜盘
+            periods = trading_time[period_type]
+            second_end_hour = int(periods[0][1].split(':')[0])
+            if second_end_hour > 23:
+                # 如果隔夜就拆成两队
+                periods = split_cross_day_time(periods)
+
+            for period in periods:
+                start_str = period[0]  # "09:00:00"
+                end_str = period[1]    # "10:15:00"
+
+                if end_str == '23:59:59' and len(periods)==2:
+                    # 夜盘的隔夜逻辑，在夜盘第一段，可以跳过'23:59:59'
+                    continue
+
+                start_time = time.fromisoformat(start_str)
+                end_time = time.fromisoformat(end_str)
+
+                # 判断是否在收盘前5分钟
                 closing_time = (datetime.combine(datetime.today(), end_time) -
-                              timedelta(minutes=5)).time()
-                if closing_time <= current_time <= end_time:
-                    return True
-            else:  # 日盘
-                closing_time = (datetime.combine(datetime.today(), end_time) -
-                              timedelta(minutes=5)).time()
+                              timedelta(minutes=CLOSE_BEFORE_MINUTE)).time()
+
+                # 如果在收盘前5分钟到收盘时间之间
                 if closing_time <= current_time <= end_time:
                     return True
 
