@@ -47,8 +47,8 @@ class EventEngine:
         self._interval: int = interval
         self._queue: Queue = Queue()
         self._active: bool = False
-        self._thread: Thread = Thread(target=self._run)
-        self._timer: Thread = Thread(target=self._run_timer)
+        self._thread: Thread = Thread(target=self._run, name='EventLoop')
+        self._timer: Thread = Thread(target=self._run_timer, name='TimerEventLoop')
         self._handlers: defaultdict = defaultdict(list)
         self._general_handlers: list = []
 
