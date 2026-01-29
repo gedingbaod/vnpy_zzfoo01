@@ -157,6 +157,13 @@ class BaseGateway(ABC):
         log: LogData = LogData(msg=msg, gateway_name=self.gateway_name)
         self.on_log(log)
 
+    def write_debug_log(self, msg: str) -> None:
+        """
+        Write a log event from gateway.
+        """
+        log: LogData = LogData(msg=msg, gateway_name=self.gateway_name, level=10)
+        self.on_log(log)
+
     @abstractmethod
     def connect(self, setting: dict) -> None:
         """

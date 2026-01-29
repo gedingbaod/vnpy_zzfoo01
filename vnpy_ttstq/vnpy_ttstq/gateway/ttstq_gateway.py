@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import sys
 from datetime import datetime
 from time import sleep
@@ -8,6 +7,7 @@ from threading import Thread, Condition
 from typing import Any, Union
 # from vnpy.trader.gateway import BaseGateway
 from common.gateway_tq import BaseGatewayTq, MARKET_SOURCE_TQSDK, MARKET_SOURCE_TTS
+from common.strategy_spread import EVENT_TQSDK_ORDER
 from common.vnpy_time import get_now
 from common.tqsdk_gateway import TqSdkMdApi  # 从common导入TQSDK行情API
 from vnpy.event.engine import EventEngine
@@ -208,24 +208,25 @@ class TtstqGateway(BaseGatewayTq):
         # 连接交易接口
         self.td_api.connect(td_address, userid, password, brokerid, auth_code, appid)
 
-        # 枷锁，等待td_api更新完行情源，再进行tqsdk的连接
-        with self.update_map_condition:
-            self.update_map_condition.wait()
-            # 根据配置选择行情源
-            if self.market_source == MARKET_SOURCE_TQSDK:
-                if not self.tqsdk_available:
-                    self.write_log("警告：未安装tqsdk库，无法使用TQSDK行情源，将使用TTS行情源")
-                    self.market_source = MARKET_SOURCE_TTS
-                    self.md_api.connect(md_address, userid, password, brokerid)
-                else:
-                    self.tq_md_api = TqSdkMdApi(self)
-                    # 连接之前，默认是TTS，tq_md_api.subscribed为空，但是会有订阅输入
-                    # 所以在TQSDK连接时，把这部分订阅，加入到TQSDK的订阅里
-                    # TQSDK会在连接后，把这部分订阅执行
+
+        # 根据配置选择行情源
+        if self.market_source == MARKET_SOURCE_TQSDK:
+            if not self.tqsdk_available:
+                self.write_log("警告：未安装tqsdk库，无法使用TQSDK行情源，将使用TTS行情源")
+                self.market_source = MARKET_SOURCE_TTS
+                self.md_api.connect(md_address, userid, password, brokerid)
+            else:
+                self.tq_md_api = TqSdkMdApi(self)
+                # 连接之前，默认是TTS，tq_md_api.subscribed为空，但是会有订阅输入
+                # 所以在TQSDK连接时，把这部分订阅，加入到TQSDK的订阅里
+                # TQSDK会在连接后，把这部分订阅执行
+                # 加锁，等待td_api更新完行情源，再进行tqsdk的连接
+                with self.update_map_condition:
+                    self.update_map_condition.wait()
                     self.tq_md_api.subscribed.update(self.md_api.subscribed)
                     self.tq_md_api.connect()
-            else:  # 默认使用TTS行情
-                self.md_api.connect(md_address, userid, password, brokerid)
+        else:  # 默认使用TTS行情
+            self.md_api.connect(md_address, userid, password, brokerid)
 
         self.init_query()
 
@@ -277,13 +278,17 @@ class TtstqGateway(BaseGatewayTq):
 
     def process_timer_event(self, event: Event) -> None:
         """定时事件处理"""
-        # 调用两次，实际执行一次
+        # 调用两次，实际执行一次，相当于每2秒执行一次
         self.count += 1
         if self.count < 2:
             return
         self.count = 0
 
         # 0是query_account, 1是query_position
+        # 这里pop出来执行，然后又加回去，相当于一个循环队列
+        # 2秒执行query_account，下一个2两秒执行query_position
+        # 相当于每4秒执行一次query_account，query_position
+        # 两个函数交替执行
         func = self.query_functions.pop(0)
         func()
         self.query_functions.append(func)
@@ -570,6 +575,9 @@ class TtsTdApi(TdApi):
 
     def onRspOrderAction(self, data: dict, error: dict, reqid: int, last: bool) -> None:
         """委托撤单失败回报"""
+        if error and  error["ErrorID"]==1011:
+            event: Event = Event(type=EVENT_TQSDK_ORDER, data=[data, error, reqid])
+            self.gateway.event_engine.put(event)
         self.gateway.write_error("交易撤单失败", error)
 
     def onRspSettlementInfoConfirm(self, data: dict, error: dict, reqid: int, last: bool) -> None:
@@ -584,7 +592,7 @@ class TtsTdApi(TdApi):
             if not n:
                 break
             else:
-                asyncio.sleep(1)
+                sleep(1)
 
     def onRspQryInvestorPosition(self, data: dict, error: dict, reqid: int, last: bool) -> None:
         """持仓查询回报"""
@@ -641,13 +649,26 @@ class TtsTdApi(TdApi):
             for position in self.positions.values():
                 self.gateway.on_position(position)
 
+            # 第一版，通过枷锁同步处理
             # 这里已经清空，之后的处理是拿不到仓位数量的
             # 所以要存入临时变量，供tqsdk调用
             # 因为会有同步问题，所以加锁
-            with self.gateway.update_pos_condition:
-                self.gateway.positions_for_tqsdk.update(self.positions)
-                self.positions.clear()
-                self.gateway.update_pos_condition.notify()
+            # with self.gateway.update_pos_condition:
+            #     self.gateway.positions_for_tqsdk.update(self.positions)
+            #     # 通知策略持仓更新（用于套利策略）
+            #     self.positions.clear()
+            #     self.gateway.update_pos_condition.notify()
+
+            # 第二版，通过回调处理
+            if self.gateway.tq_md_api and hasattr(self.gateway.tq_md_api, 'spread_strategy'):
+                # 先清空，避免有残存数据
+                # self.gateway.positions_for_tqsdk.clear()
+                # self.gateway.positions_for_tqsdk.update(self.positions)
+                strategy_positions = list(self.positions.values())
+                self.gateway.tq_md_api.spread_strategy.on_position_update(strategy_positions)
+
+            # 原版只清空
+            self.positions.clear()
 
     def onRspQryTradingAccount(self, data: dict, error: dict, reqid: int, last: bool) -> None:
         """资金查询回报"""
@@ -736,7 +757,7 @@ class TtsTdApi(TdApi):
         orderid: str = f"{frontid}_{sessionid}_{order_ref}"
 
         time_order = get_now()
-        self.gateway.write_log(f'获取到订单的时间：{time_order} 订单ID：{orderid} 订单状态：{STATUS_TTS2VT[data["OrderStatus"]]}')
+        self.gateway.write_debug_log(f'获取到订单的时间：{time_order} 订单ID：{orderid} 订单状态：{STATUS_TTS2VT[data["OrderStatus"]]} data：{data}')
 
         timestamp: str = f"{data['InsertDate']} {data['InsertTime']}"
         dt: datetime = datetime.strptime(timestamp, "%Y%m%d %H:%M:%S")
@@ -757,8 +778,8 @@ class TtsTdApi(TdApi):
             gateway_name=self.gateway_name
         )
         time_order = get_now()
-        self.gateway.write_log(
-            f'整理订单时间：{time_order} 订单信息：{order}')
+        self.gateway.write_debug_log(f'整理订单时间：{time_order} 订单信息：{order}')
+        # 将订单作为EVENT_ORDER事件发送
         self.gateway.on_order(order)
 
         # 通知TqSdkMdApi订单状态更新（用于套利策略）
