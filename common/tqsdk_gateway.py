@@ -60,6 +60,7 @@ EXCHANGE_TTS2VT: dict[str, Exchange] = {
 # 其他常量
 MAX_FLOAT = sys.float_info.max
 CHINA_TZ = ZoneInfo("Asia/Shanghai")
+KLINES_WINDOWS = 20
 
 
 def adjust_price(price: float) -> float:
@@ -101,9 +102,12 @@ class TqSdkMdApi:
 
         # 在未连接前，还无法订阅行情，此处保存要订阅的数据，连接之后会再调用一次订阅
         self.subscribed: set = set()
+        self.klines_duration = 15 * 60
+        self.klines_data_length = KLINES_WINDOWS * 2
         self.quotes: dict[str, Any] = {}  # 保存行情引用 {symbol: quote}
+        self.klines: dict[str, Any] = {}  # 保存行情引用 {symbol: kline}
 
-        # 测试下单相关
+        # 测试下单相关，代码已经被注释了
         self.order_placed: bool = False  # 是否已经下过单
         self.order_ids: list[str] = []  # 记录订单ID
         self.traded_vt_orderids: set = set()  # 已成交的订单ID集合
@@ -133,6 +137,7 @@ class TqSdkMdApi:
 
             # 订阅之前已经订阅的合约
             for symbol in self.subscribed:
+                # 在AgSpreadStrategy已经订阅了两个合约，这里真正订阅
                 self._subscribe_symbol(symbol)
 
         except Exception as e:
@@ -172,9 +177,11 @@ class TqSdkMdApi:
         try:
             # 获取行情引用（自动订阅）
             quote = self.api.get_quote(tq_symbol)
+            kline = self.api.get_kline_serial(tq_symbol, self.klines_duration, self.klines_data_length)
 
             # 保存行情引用
             self.quotes[symbol] = quote
+            self.klines[symbol] = kline
             self.gateway.write_log(f"TQSDK订阅行情成功：{tq_symbol}")
 
         except Exception as e:
@@ -188,7 +195,7 @@ class TqSdkMdApi:
                 self.api.wait_update()
 
                 # 检查是否有跨期合约的行情，执行跨期套利策略
-                self.spread_strategy.check_and_run(self.quotes)
+                self.spread_strategy.check_and_run(self.quotes, self.klines)
 
                 # 处理所有已订阅合约的行情
                 for symbol, quote in self.quotes.items():
@@ -200,7 +207,8 @@ class TqSdkMdApi:
             except Exception as e:
                 if self.active:
                     self.gateway.write_log(f"TQSDK行情处理异常：{str(e)}")
-                break
+                import traceback
+                traceback.print_exc()
 
         # 退出循环后关闭API
         print("wait_update循环退出")

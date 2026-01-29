@@ -14,8 +14,11 @@ from time import sleep
 from threading import Thread
 from typing import Any, Union, Optional, TYPE_CHECKING, Dict
 
+import numpy as np
+import pandas as pd
 from tqsdk.objs import Quote
 
+from common.tqsdk_gateway import KLINES_WINDOWS
 from common.vnpy_time import split_cross_day_time
 from vnpy.trader.constant import Direction, Offset, Exchange, OrderType, Status
 from vnpy.trader.object import OrderRequest, CancelRequest, ContractData, SubscribeRequest
@@ -28,11 +31,17 @@ if TYPE_CHECKING:
 MAX_FLOAT = sys.float_info.max
 # 收盘前多少分钟停止交易
 CLOSE_BEFORE_MINUTE = 15
-
+# 订单更新时间，用于注册
 EVENT_TQSDK_ORDER = "eTqsdkOrder"
-
+# 开仓手数
 DEFAULT_SLOT = 1
-
+# 做一次差价开平的手续费成本,240，一跳15元
+COMMISION_COST = 16
+# 做一次差价就是4次下单，一次滑点设为3
+SLIPPAGE_COST = 3 * 4
+# 开仓时的盘口成本，以空差为例：  (近期买1价-远期卖1价) - (近期卖1价-远期买1价)   结果为负数就是成本，为正数就是利润
+# 盘口成本为负时，说明价差还可能会上涨，比如会到-10，所以等价差从高点开始回落，再下单是比较好的时机
+ORDERBOOK_COST = -4
 
 def adjust_price(price: float) -> float:
     """将异常的浮点数最大值（MAX_FLOAT）数据调整为0"""
@@ -118,7 +127,7 @@ class SpreadTradingStrategy:
         self.closing_check_thread = Thread(target=self._check_closing_time_loop, daemon=True, name="closing_check_thread")
         self.closing_check_thread.start()
 
-    def check_and_run(self, quotes_sub: Dict[str, Quote]) -> None:
+    def check_and_run(self, quotes_sub: Dict[str, Quote], klines_sub: Dict[str, pd.DataFrame]) -> None:
         """
         在await_update之后调用，检查是否可以执行策略
 
@@ -137,11 +146,75 @@ class SpreadTradingStrategy:
         if not self.position_loaded:
             return  # 等待持仓信息加载完成
 
+
+        self.klines_calculate(quotes_sub, klines_sub)
+
+
+
         if self.near_symbol in quotes_sub and self.far_symbol in quotes_sub:
             near_quote: Quote = quotes_sub[self.near_symbol]
             far_quote: Quote = quotes_sub[self.far_symbol]
             if self._check_data_sync(near_quote, far_quote):
                 self.on_tick(near_quote, far_quote)
+
+    def klines_calculate(self, quotes_sub: Dict[str, Quote], klines_sub: Dict[str, pd.DataFrame]):
+        near_klines = klines_sub[self.near_symbol]
+        far_klines = klines_sub[self.far_symbol]
+        # 两个kline 都没变化就返回
+        if (not self.gateway.tq_md_api.api.is_changing(near_klines)
+                and not self.gateway.tq_md_api.api.is_changing(far_klines)):
+            return
+        # 确保有足够的数据
+        if len(near_klines) < KLINES_WINDOWS or len(far_klines) < KLINES_WINDOWS:
+            self.gateway.write_log(f"时间窗口不一致， near_klines: {len(near_klines)} far_klines: {len(far_klines)}")
+            return
+
+        # # 获取两个klines的最新时间，如果不一致，则缝合数据
+        # near_kline_time = datetime.fromtimestamp(near_klines.datetime.iloc[-1] / 1e9)
+        # far_kline_time = datetime.fromtimestamp(far_klines.datetime.iloc[-1] / 1e9)
+        # if near_kline_time == far_kline_time:
+        #
+        #     # calulate_spread(near_klines, far_klines)
+        #     # 获取窗口内价格
+        #     near_close = near_klines.close.iloc[-KLINES_WINDOWS:]
+        #     far_close = far_klines.close.iloc[-KLINES_WINDOWS:]
+        #     # 计算价差
+        #     spread = near_close - far_close
+        #     # 计算均值和标准差
+        #     mean = np.mean(spread)
+        #     std = np.std(spread)
+        #     # 计算上轨边界
+        #     upper_bound = mean + max(K * std, THRESHOLD_DOWN)   # 出于风控，不能低于THRESHOLD_DOWN
+        #     # 计算下轨边界
+        #     lower_bound = mean - max(K * std, THRESHOLD_DOWN)
+        #     # 存储前值
+        #     pre_spread_value = (mean, std, upper_bound, lower_bound)
+        #     # # logger.info(f"---near_klines时间：{near_kline_time}, far_klines时间：{far_kline_time}，合约时间相同")
+        #
+        # elif near_kline_time > far_kline_time:
+        #     logger.info(f"---near_klines时间：{near_kline_time}, far_klines时间：{far_kline_time}， near_klines时间快")
+        #     if pre_spread_value is not None:
+        #         mean, std, upper_bound, lower_bound = pre_spread_value
+        #     else:
+        #         # 如果不交易，就写下日志
+        #         print_klines(near_klines, far_klines)
+        #         near_close = near_klines.close.iloc[-WINDOW-1:-1]
+        #         far_close = far_klines.close.iloc[-WINDOW:]
+        #         logger.info(near_close)
+        #         logger.info(far_close)
+        #         continue
+        # else:
+        #     logger.info(f"---near_klines时间：{near_kline_time}, far_klines时间：{far_kline_time}， far_klines时间快")
+        #     if pre_spread_value is not None:
+        #         mean, std, upper_bound, lower_bound = pre_spread_value
+        #     else:
+        #         # 如果不交易，就写下日志
+        #         near_close = near_klines.close.iloc[-WINDOW:]
+        #         far_close = far_klines.close.iloc[-WINDOW-1:-1]
+        #         print_klines(near_klines, far_klines)
+        #         logger.info(near_close)
+        #         logger.info(far_close)
+        #         continue
 
     def on_tick(self, near_quote: Quote, far_quote: Quote) -> None:
         """
@@ -794,7 +867,7 @@ class SpreadTradingStrategy:
                     self.gateway.write_log("检测到做空价差持仓，已恢复策略状态")
                 self.spread_position["short_spread"] = {
                     "open_time": datetime.now(),  # 使用当前时间作为开仓时间
-                    "open_spread": 0,  # 无法获取原始开仓价差，设为0
+                    "open_spread": near_short_positions[0].price - far_long_positions[0].price,  # 原始开仓价是近期买1-远期卖1 或者近期卖1-远期买1，这里只能用两个实际成交价相减
                     "near_order_id": "",
                     "far_order_id": "",
                     "near_filled": True,
@@ -812,7 +885,7 @@ class SpreadTradingStrategy:
                     self.gateway.write_log("检测到做多价差持仓，已恢复策略状态")
                 self.spread_position["long_spread"] = {
                     "open_time": datetime.now(),  # 使用当前时间作为开仓时间
-                    "open_spread": 0,  # 无法获取原始开仓价差，设为0
+                    "open_spread": near_long_positions[0].price - far_short_positions[0].price,  # 无法获取原始开仓价差，设为0
                     "near_order_id": "",
                     "far_order_id": "",
                     "near_filled": True,
@@ -1249,18 +1322,21 @@ class AgSpreadStrategy(SpreadTradingStrategy):
         self.subscribe_ag()             # 订阅跨期套利合约
 
     def subscribe_ag(self):
-        contract_near: ContractData | None = self.gateway.symbol_contract_map_tqsdk.get(self.near_symbol, None)
-        if not contract_near:
-            return
-        contract_far: ContractData | None = self.gateway.symbol_contract_map_tqsdk.get(self.far_symbol, None)
-        if not contract_near:
-            return
+
+        # 此处不用判断合约是否存在，因为此时Gateway还未连接，
+        # 只是把订阅的合约预存在gateway的subscribed对象里
+        # contract_near: ContractData | None = self.gateway.symbol_contract_map_tqsdk.get(self.near_symbol, None)
+        # if not contract_near:
+        #     return
+        # contract_far: ContractData | None = self.gateway.symbol_contract_map_tqsdk.get(self.far_symbol, None)
+        # if not contract_near:
+        #     return
 
         req_near: SubscribeRequest = SubscribeRequest(
-            symbol=contract_near.symbol, exchange=contract_near.exchange
+            symbol=self.near_symbol, exchange=Exchange.SHFE
         )
         req_far: SubscribeRequest = SubscribeRequest(
-            symbol=contract_far.symbol, exchange=contract_far.exchange
+            symbol=self.far_symbol, exchange=Exchange.SHFE
         )
 
         self.gateway.subscribe(req_near)
