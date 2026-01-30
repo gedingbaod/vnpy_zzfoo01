@@ -25,12 +25,10 @@ class BaseGatewayTq(BaseGateway):
         self.market_source: str = MARKET_SOURCE_TTS   # 区分行情源是TTS还是TTSTQ，默认使用TTS行情，再连接以前不要改变原有逻辑
         self.tq_md_api = None  # TQSDK行情API，这里定义TqSdkMdApi，会产生循环依赖
 
-        self.positions_for_tqsdk: dict[str, PositionData] = {}  # 仓位数据，从TdApi的onRspQryInvestorPosition中更新
-        self.update_pos_condition: Condition = Condition()  # 用于更新仓位时，做同步处理
+        # self.positions_for_tqsdk: dict[str, PositionData] = {}  # 仓位数据，从TdApi的onRspQryInvestorPosition中更新
+        # self.update_pos_condition: Condition = Condition()  # 用于更新仓位时，做同步处理
 
         # 合约数据全局缓存字典，会在TdApi的onRspQryInstrument中更新
         self.update_map_condition: Condition = Condition()  # 用于更新合约时，做同步处理
         self.symbol_contract_map_tqsdk: dict[str, ContractData] = {}  # 一定要用TdApi的合约是因为发送交易也是到这里
 
-
-        # TdApi的调用链：
