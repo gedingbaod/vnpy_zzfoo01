@@ -128,7 +128,6 @@ class SpreadTradingStrategy:
 
         # 状态标志
         self.is_closing_time: bool = False  # 是否处于收盘前15分钟，为True时停止开新仓
-        self.close_time_warned: bool = False  # 是否已经发出收盘警告日志，避免重复日志
         self.thread_active: bool = True  # 策略是否激活，False时停止收盘时间检查线程
         self.position_loaded: bool = False  # 是否已经加载过持仓信息，True后才开始交易
 
@@ -1182,9 +1181,7 @@ class SpreadTradingStrategy:
                         # 为了提升性能，这里不加锁了，所以执行两次，避免同步问题
                         self.is_closing_time = True
                         self.is_closing_time = True
-                        if not self.close_time_warned:
-                            self.gateway.write_log("进入收盘前5分钟，停止新开仓")
-                            self.close_time_warned = True
+                        self.gateway.write_log(f"进入收盘前{CLOSE_BEFORE_MINUTE}分钟，停止新开仓")
 
                     # 强制平仓
                     if self.spread_position:
@@ -1197,7 +1194,6 @@ class SpreadTradingStrategy:
                         # 为了提升性能，这里不加锁了，所以执行两次，避免同步问题
                         self.is_closing_time = False
                         self.is_closing_time = False
-                        self.close_time_warned = False
 
             except Exception as e:
                 if self.thread_active:
