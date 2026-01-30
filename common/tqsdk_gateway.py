@@ -15,7 +15,7 @@ from tqsdk.objs import Quote
 from tqsdk import TqApi, TqAuth
 
 from common.gateway_tq import BaseGatewayTq
-from common.strategy_spread import AgSpreadStrategy  # 导入策略模块
+from common.strategy_spread import AgSpreadStrategy, KLINES_WINDOWS, KLINES_DURATION
 from vnpy.event.engine import EventEngine
 from vnpy.trader.constant import (
     Direction,
@@ -60,7 +60,6 @@ EXCHANGE_TTS2VT: dict[str, Exchange] = {
 # 其他常量
 MAX_FLOAT = sys.float_info.max
 CHINA_TZ = ZoneInfo("Asia/Shanghai")
-KLINES_WINDOWS = 20
 
 
 def adjust_price(price: float) -> float:
@@ -102,7 +101,7 @@ class TqSdkMdApi:
 
         # 在未连接前，还无法订阅行情，此处保存要订阅的数据，连接之后会再调用一次订阅
         self.subscribed: set = set()
-        self.klines_duration = 15 * 60
+        self.klines_duration = KLINES_DURATION
         self.klines_data_length = KLINES_WINDOWS * 2
         self.quotes: dict[str, Any] = {}  # 保存行情引用 {symbol: quote}
         self.klines: dict[str, Any] = {}  # 保存行情引用 {symbol: kline}

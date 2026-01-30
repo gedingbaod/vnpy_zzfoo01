@@ -575,7 +575,7 @@ class TtsTdApi(TdApi):
 
     def onRspOrderAction(self, data: dict, error: dict, reqid: int, last: bool) -> None:
         """委托撤单失败回报"""
-        if error and  error["ErrorID"]==1011:
+        if error:
             event: Event = Event(type=EVENT_TQSDK_ORDER, data=[data, error, reqid])
             self.gateway.event_engine.put(event)
         self.gateway.write_error("交易撤单失败", error)
