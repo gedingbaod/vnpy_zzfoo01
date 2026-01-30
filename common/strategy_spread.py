@@ -845,7 +845,8 @@ class SpreadTradingStrategy:
                         position["far_filled"] = True
 
                 # 从待成交订单中移除
-                del self.pending_orders[vt_orderid]
+                if vt_orderid in self.pending_orders:
+                    del self.pending_orders[vt_orderid]
 
                 # 检查配对订单是否也成交
                 if pair_order_id and pair_order_id not in self.pending_orders:
