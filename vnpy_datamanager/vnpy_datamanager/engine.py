@@ -5,7 +5,7 @@ from collections.abc import Callable
 from vnpy.trader.engine import BaseEngine, MainEngine, EventEngine
 from vnpy.trader.constant import Interval, Exchange
 from vnpy.trader.object import BarData, TickData, ContractData, HistoryRequest
-from vnpy.trader.database import BaseDatabase, get_database, BarOverview, DB_TZ
+from vnpy.trader.database import BaseDatabase, get_database, BarOverview, DB_TZ, TickOverview
 from vnpy.trader.datafeed import BaseDatafeed, get_datafeed
 from vnpy.trader.utility import ZoneInfo
 
@@ -145,6 +145,11 @@ class ManagerEngine(BaseEngine):
     def get_bar_overview(self) -> list[BarOverview]:
         """"""
         overview: list[BarOverview] = self.database.get_bar_overview()
+        return overview
+
+    def get_tick_overview(self) -> list[TickOverview]:
+        """"""
+        overview: list[TickOverview] = self.database.get_tick_overview()
         return overview
 
     def load_bar_data(

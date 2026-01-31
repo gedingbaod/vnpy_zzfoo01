@@ -5,7 +5,7 @@ from vnpy.trader.ui import QtWidgets, QtCore
 from vnpy.trader.engine import MainEngine, EventEngine
 from vnpy.trader.constant import Interval, Exchange
 from vnpy.trader.object import BarData
-from vnpy.trader.database import DB_TZ
+from vnpy.trader.database import DB_TZ, TickOverview
 from vnpy.trader.utility import available_timezones
 
 from ..engine import APP_NAME, ManagerEngine, BarOverview
@@ -15,6 +15,7 @@ INTERVAL_NAME_MAP = {
     Interval.MINUTE: "分钟线",
     Interval.HOUR: "小时线",
     Interval.DAILY: "日线",
+    Interval.TICK: "Tick线"
 }
 
 
@@ -118,7 +119,7 @@ class ManagerWidget(QtWidgets.QWidget):
         overviews.sort(key=lambda x: x.symbol)
 
         # 添加数据周期节点
-        for interval in [Interval.MINUTE, Interval.HOUR, Interval.DAILY]:
+        for interval in [Interval.MINUTE, Interval.HOUR, Interval.DAILY, Interval.TICK]:
             interval_child = QtWidgets.QTreeWidgetItem()
             interval_childs[interval] = interval_child
 
@@ -184,6 +185,72 @@ class ManagerWidget(QtWidgets.QWidget):
             self.tree.setItemWidget(item, 8, output_button)
             self.tree.setItemWidget(item, 9, delete_button)
 
+        #==================================
+        # 查询数据汇总，并基于合约代码进行排序
+        tick_overviews: list[TickOverview] = self.engine.get_tick_overview()
+        tick_overviews.sort(key=lambda x: x.symbol)
+
+        # 遍历添加数据节点
+        for overview in tick_overviews:
+            # 获取交易所节点
+            overview.interval = Interval.TICK
+            key: tuple = (overview.interval, overview.exchange)
+            exchange_child: QtWidgets.QTreeWidgetItem = exchange_childs.get(key, None)
+
+            if not exchange_child:
+                interval_child = interval_childs[overview.interval]
+
+                exchange_child = QtWidgets.QTreeWidgetItem(interval_child)
+                exchange_child.setText(0, overview.exchange.value)
+
+                exchange_childs[key] = exchange_child
+
+            #  创建数据节点
+            item = QtWidgets.QTreeWidgetItem(exchange_child)
+
+            item.setText(1, f"{overview.symbol}.{overview.exchange.value}")
+            item.setText(2, overview.symbol)
+            item.setText(3, overview.exchange.value)
+            item.setText(4, str(overview.count))
+            item.setText(5, overview.start.strftime("%Y-%m-%d %H:%M:%S"))
+            item.setText(6, overview.end.strftime("%Y-%m-%d %H:%M:%S"))
+
+            output_button: QtWidgets.QPushButton = QtWidgets.QPushButton("导出")
+            output_func = partial(
+                self.output_data,
+                overview.symbol,
+                overview.exchange,
+                overview.interval,
+                overview.start,
+                overview.end
+            )
+            output_button.clicked.connect(output_func)
+
+            show_button: QtWidgets.QPushButton = QtWidgets.QPushButton("查看")
+            show_func = partial(
+                self.show_data,
+                overview.symbol,
+                overview.exchange,
+                overview.interval,
+                overview.start,
+                overview.end
+            )
+            show_button.clicked.connect(show_func)
+
+            delete_button: QtWidgets.QPushButton = QtWidgets.QPushButton("删除")
+            delete_func = partial(
+                self.delete_data,
+                overview.symbol,
+                overview.exchange,
+                overview.interval
+            )
+            delete_button.clicked.connect(delete_func)
+
+            self.tree.setItemWidget(item, 7, show_button)
+            self.tree.setItemWidget(item, 8, output_button)
+            self.tree.setItemWidget(item, 9, delete_button)
+
+        # ==================================
         # 展开顶层节点
         self.tree.addTopLevelItems(list(interval_childs.values()))
 

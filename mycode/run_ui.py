@@ -4,7 +4,7 @@ from vnpy.trader.engine import MainEngine
 from vnpy.trader.ui import MainWindow, create_qapp
 
 
-CONN='TTSTQ'
+CONN='CTPTEST'
 # 这六个只能留一个，不然会报错
 if CONN == 'CTP':
     from vnpy_ctp import CtpGateway
