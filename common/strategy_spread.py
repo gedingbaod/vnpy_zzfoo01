@@ -48,7 +48,7 @@ AG_MIN_PROFIT = 10
 # kline的请求数量
 KLINES_WINDOWS = 20
 
-KLINES_DURATION = 15 * 60
+KLINES_DURATION = 1 * 60
 
 def adjust_price(price: float) -> float:
     """将异常的浮点数最大值（MAX_FLOAT）数据调整为0"""
@@ -383,7 +383,7 @@ class SpreadTradingStrategy:
         # 止损：价差继续扩大（>开仓价+50）
         # 做空价差亏损了，止损平仓
         if current_spread > open_spread + self.stop_loss_points:
-            self.gateway.write_log(f"做空价差止损: {current_spread} > {open_spread + self.stop_loss_points}，平仓")
+            self.gateway.write_log(f"做空价差止损: {current_spread} > {open_spread} + {self.stop_loss_points}，平仓")
             self.close_position()
             return
 
@@ -418,7 +418,7 @@ class SpreadTradingStrategy:
         # 止损：价差继续下跌（<开仓价-50）
         # 做多价差亏损了，止损平仓
         if current_spread < open_spread - self.stop_loss_points:
-            self.gateway.write_log(f"做多价差止损: {current_spread} < {open_spread - self.stop_loss_points}，平仓")
+            self.gateway.write_log(f"做多价差止损: {current_spread} < {open_spread} - {self.stop_loss_points}，平仓")
             self.close_position()
             return
 
@@ -449,9 +449,9 @@ class SpreadTradingStrategy:
             near_contract = self.gateway.symbol_contract_map_tqsdk.get(self.near_symbol)
             far_contract = self.gateway.symbol_contract_map_tqsdk.get(self.far_symbol)
 
-            if not near_contract or not far_contract:
-                self.gateway.write_log("未找到合约信息")
-                return
+            # if not near_contract or not far_contract:
+            #     self.gateway.write_log("未找到合约信息")
+            #     return
 
             # 下单1：卖出近月合约（SHORT, OPEN）
             req_near = OrderRequest(
@@ -503,14 +503,16 @@ class SpreadTradingStrategy:
                     "open_spread": spread,        # 开仓时的价差
                     "open_time": datetime.now(),  # 开仓时间
                     "near_order_id": order_id_near,  # 近月订单ID
-                    "far_order_id": order_id_far,    # 远月订单ID
+                    "near_price1": near_quote.bid_price1,  # 记录卖1价
                     "near_filled": False,  # 近月是否成交（初始为False）
-                    "near_yd_volume": 0,    # 新开仓都是今仓，昨仓为0
+                    "near_yd_volume": 0,  # 新开仓都是今仓，昨仓为0
+                    "far_order_id": order_id_far,    # 远月订单ID
+                    "far_price1": far_quote.ask_price1,  # 记录买1价
                     "far_filled": False,   # 远月是否成交（初始为False）
                     "far_yd_volume": 0     # 新开仓都是今仓，昨仓为0
                 }
-
-                self.gateway.write_log(f"做空价差开仓订单已发送: {order_id_near}, {order_id_far}")
+                self.gateway.write_log(f"做空价差开仓订单已发送: near_order:{order_id_near}, near_price1_bid: {near_quote.bid_price1}, "
+                                       f"far_order:{order_id_far}, far_price1_ask: {far_quote.ask_price1} ")
             else:
                 self.gateway.write_log("做空价差开仓失败")
                 # 清理部分订单（如果有一个订单发送成功，另一个失败）
@@ -603,14 +605,17 @@ class SpreadTradingStrategy:
                     "open_spread": spread,        # 开仓时的价差
                     "open_time": datetime.now(),  # 开仓时间
                     "near_order_id": order_id_near,  # 近月订单ID
-                    "far_order_id": order_id_far,    # 远月订单ID
+                    "near_price1": near_quote.ask_price1,  # 记录买1价
                     "near_filled": False,  # 近月是否成交（初始为False）
-                    "near_yd_volume": 0,    # 新开仓都是今仓，昨仓为0
+                    "near_yd_volume": 0,  # 新开仓都是今仓，昨仓为0
+                    "far_order_id": order_id_far,    # 远月订单ID
+                    "far_price1": far_quote.bid_price1,  # 记录卖1价
                     "far_filled": False,   # 远月是否成交（初始为False）
                     "far_yd_volume": 0     # 新开仓都是今仓，昨仓为0
                 }
 
-                self.gateway.write_log(f"做多价差开仓订单已发送: {order_id_near}, {order_id_far}")
+                self.gateway.write_log(f"做多价差开仓订单已发送: near_order:{order_id_near}, near_price1_ask: {near_quote.ask_price1}, "
+                                       f"far_order:{order_id_far}, far_price1_bid: {far_quote.bid_price1} ")
             else:
                 self.gateway.write_log("做多价差开仓失败")
                 # 清理部分订单（如果有一个订单发送成功，另一个失败）

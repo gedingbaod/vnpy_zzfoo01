@@ -598,7 +598,8 @@ class TtsTdApi(TdApi):
         """持仓查询回报"""
         if not data:
             return
-
+        time_recorder = get_now()
+        self.gateway.write_debug_log(f'获取仓位数据的时间：{time_recorder} reqid：{reqid}  接收数据：{data}')
         # 必须已经收到了合约信息后才能处理
         symbol: str = data["InstrumentID"]
         contract: ContractData = symbol_contract_map.get(symbol, None)
@@ -645,6 +646,8 @@ class TtsTdApi(TdApi):
             else:
                 position.frozen += data["LongFrozen"]
 
+            time_order = get_now()
+            self.gateway.write_debug_log(f'获取到订单的时间：{time_order} 仓位数据：{position}')
         if last:
             for position in self.positions.values():
                 self.gateway.on_position(position)
@@ -756,8 +759,8 @@ class TtsTdApi(TdApi):
         order_ref: str = data["OrderRef"]
         orderid: str = f"{frontid}_{sessionid}_{order_ref}"
 
-        time_order = get_now()
-        self.gateway.write_debug_log(f'获取到订单的时间：{time_order} 订单ID：{orderid} 订单状态：{STATUS_TTS2VT[data["OrderStatus"]]} data：{data}')
+        # time_order = get_now()
+        # self.gateway.write_debug_log(f'获取到订单的时间：{time_order} 订单ID：{orderid} 订单状态：{STATUS_TTS2VT[data["OrderStatus"]]} 接收数据：{data}')
 
         timestamp: str = f"{data['InsertDate']} {data['InsertTime']}"
         dt: datetime = datetime.strptime(timestamp, "%Y%m%d %H:%M:%S")
@@ -777,8 +780,8 @@ class TtsTdApi(TdApi):
             datetime=dt,
             gateway_name=self.gateway_name
         )
-        time_order = get_now()
-        self.gateway.write_debug_log(f'整理订单时间：{time_order} 订单信息：{order}')
+        # time_order = get_now()
+        # self.gateway.write_debug_log(f'整理订单时间：{time_order}，订单信息：{order}')
         # 将订单作为EVENT_ORDER事件发送
         self.gateway.on_order(order)
 
