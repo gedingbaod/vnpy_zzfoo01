@@ -182,7 +182,9 @@ class GmDatafeed(BaseDatafeed):
                 gateway_name="GM"
             )
             ticks.append(tick)
-
-        print(ticks[0], ticks[-1])
+        if len(ticks) == 0:
+            print(f'合约{exchange.value}.{symbol}下载数据为0')
+        else:
+            print(ticks[0], ticks[-1])
 
         return ticks

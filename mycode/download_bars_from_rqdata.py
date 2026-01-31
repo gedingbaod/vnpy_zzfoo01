@@ -130,8 +130,8 @@ def vnpy_data_process(symbol, exchange, start, end, interval):
 
 
 if __name__ == "__main__":
-
-    main(r'I:\QUANT\QuantData\DataFeedEx\juejin\data\contracts_csv_202601')
+    main(r'D:\02.QUANT\QuantData\DataFeedEx\juejin\data\test')
+    # main(r'I:\QUANT\QuantData\DataFeedEx\juejin\data\contracts_csv_202601')
     pass
 
 

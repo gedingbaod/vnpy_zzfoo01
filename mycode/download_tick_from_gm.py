@@ -2,7 +2,7 @@
 import warnings
 
 import pandas as pd
-from rqdatac.services.basic import instruments
+# from rqdatac.services.basic import instruments
 
 from common.file_dir import traverse_file_in_dir, load_data_from_csv
 
@@ -60,7 +60,9 @@ def log_write(msg):
     log_file.flush()
 
 def main(csv_path):
-
+    result: bool = datafeed.init()
+    if result:
+        print("数据服务初始化成功")
 
     # 获取所有合约
     file_list = traverse_file_in_dir(csv_path)
@@ -102,10 +104,10 @@ def main(csv_path):
                 # if not check_loaded(symbol=sec_id, exchange=exchange, list_loaded=list_loaded):
                 #     log_write(f"{sec_id}.{exchange} 未下载")
 
-def check_loaded(symbol, exchange, list_loaded):
-    for row in list_loaded:
-        if row.symbol == symbol and row.exchange.value == exchange.value:
-            return True
+# def check_loaded(symbol, exchange, list_loaded):
+#     for row in list_loaded:
+#         if row.symbol == symbol and row.exchange.value == exchange.value:
+#             return True
 
 def vnpy_tick_process(symbol, exchange, start, end, interval):
     # 创建历史数据请求对象
