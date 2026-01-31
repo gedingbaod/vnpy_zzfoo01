@@ -1,6 +1,7 @@
 # 忽略各模块的警告信息
 import warnings
 
+import pandas as pd
 from rqdatac.services.basic import instruments
 
 from common.file_dir import traverse_file_in_dir, load_data_from_csv
@@ -71,6 +72,7 @@ def main(csv_path):
         #     continue
         log_write(f'导入文件：{file_path}')
         instruments_df = load_data_from_csv(file_path)
+
         # 商品合约总数
         total = len(instruments_df)
         # 遍历该商品全部合约
@@ -81,6 +83,10 @@ def main(csv_path):
             # Timestamp转为datetime，测试过没有损失精度
             listed_date = row['listed_date'].to_pydatetime()
             delisted_date = row['delisted_date'].to_pydatetime()
+
+            local_time = pd.Timestamp('2026-01-19', tz='Asia/Shanghai')
+            if delisted_date < local_time:
+                continue
 
             # 打印行数据（可替换为你的业务逻辑）
             # log_write(f"索引：{idx+1} 总数：{total} | 交易所：{exchange} "
