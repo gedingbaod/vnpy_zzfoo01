@@ -186,6 +186,14 @@ class ManagerEngine(BaseEngine):
 
         return count
 
+    def delete_tick_data(self, symbol, exchange) -> int:
+        """"""
+        count: int = self.database.delete_tick_data(
+            symbol,
+            exchange,
+        )
+        return count
+
     def download_bar_data(
         self,
         symbol: str,

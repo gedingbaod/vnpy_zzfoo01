@@ -239,7 +239,7 @@ class ManagerWidget(QtWidgets.QWidget):
 
             delete_button: QtWidgets.QPushButton = QtWidgets.QPushButton("删除")
             delete_func = partial(
-                self.delete_data,
+                self.delete_tick_data,
                 overview.symbol,
                 overview.exchange,
                 overview.interval
@@ -408,6 +408,36 @@ class ManagerWidget(QtWidgets.QWidget):
             symbol,
             exchange,
             interval
+        )
+
+        QtWidgets.QMessageBox.information(
+            self,
+            "删除成功",
+            f"已删除{symbol} {exchange.value} {interval.value}共计{count}条数据",
+            QtWidgets.QMessageBox.Ok
+        )
+
+    def delete_tick_data(
+        self,
+        symbol: str,
+        exchange: Exchange,
+        interval: Interval
+    ) -> None:
+        """"""
+        n = QtWidgets.QMessageBox.warning(
+            self,
+            "删除确认",
+            f"请确认是否要删除{symbol} {exchange.value} {interval.value}的全部数据",
+            QtWidgets.QMessageBox.Ok,
+            QtWidgets.QMessageBox.Cancel
+        )
+
+        if n == QtWidgets.QMessageBox.Cancel:
+            return
+
+        count: int = self.engine.delete_tick_data(
+            symbol,
+            exchange,
         )
 
         QtWidgets.QMessageBox.information(
