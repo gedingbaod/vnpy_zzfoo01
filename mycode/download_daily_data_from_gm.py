@@ -46,7 +46,7 @@ SETTINGS["database.password"] = "123456"
 datafeed = get_datafeed()
 database = get_database()
 
-log_file =open("tick_log.txt", "a")
+log_file =open("daily_data_log.txt", "a")
 def log_write(msg):
     out_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     out_str += "   "
@@ -140,13 +140,16 @@ def main(csv_path):
             if delisted_date > local_time:
                 local_time_str = local_time.strftime("%Y-%m-%d")
                 date_list = get_dates_from_range(local_time_str, local_time_str)
-                # if len(date_list) == 0:
-                #     sys.exit(1)
+                if len(date_list) == 0:
+                    sys.exit(1)
                 start_time, end_time = get_trading_datetime(local_time)
 
                 # 打印行数据（可替换为你的业务逻辑）
                 # log_write(f"索引：{idx+1} 总数：{total} | 交易所：{exchange} "
                 #           f"| 合约代码：{sec_id} | 上市日期：{listed_date} | 退市日期：{delisted_date}")
+                vnpy_data_process(sec_id, exchange, end_time, end_time, Interval.DAILY)
+                vnpy_data_process(sec_id, exchange, start_time, end_time, Interval.HOUR)
+                vnpy_data_process(sec_id, exchange, start_time, end_time, Interval.MINUTE)
 
                 vnpy_tick_process(sec_id, exchange, start_time, end_time, Interval.TICK)
 
@@ -184,6 +187,29 @@ def vnpy_tick_process(symbol, exchange, start, end, interval):
         import traceback
         traceback.print_exc()
 
+def vnpy_data_process(symbol, exchange, start, end, interval):
+    # 创建历史数据请求对象
+    req: HistoryRequest = HistoryRequest(
+        symbol=symbol,
+        exchange=exchange,
+        start=start,
+        end=end,
+        interval=interval  # Interval.MINUTE,Interval.HOUR,Interval.DAILY,Interval.WEEKLY
+    )
+    try:
+        # 从数据服务下载数据
+        bars: list[BarData] = datafeed.query_bar_history(req)
+        log_write(f"下载数据成功：{symbol}.{exchange}，周期：{interval}，总数据量：{len(bars)}")
+        # 如果下载成功则保存
+        if bars:
+            database.save_bar_data(bars)
+            log_write(f"保存数据成功：{symbol}.{exchange}，周期：{interval}，总数据量：{len(bars)}")
+        # 否则失败则打印信息
+        else:
+            log_write(f"数据为空：{symbol}.{exchange}")
+    except Exception as e:
+        log_write(f"========下载数据异常：{symbol}.{exchange}")
+        log_write(e)
 
 if __name__ == "__main__":
     main(r'D:\02.QUANT\QuantData\DataFeedEx\juejin\data\test')
