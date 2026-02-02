@@ -178,6 +178,8 @@ class TtstqGateway(BaseGatewayTq):
 
         self.td_api: TtsTdApi = TtsTdApi(self)
         self.md_api: TtsMdApi = TtsMdApi(self)
+        # self.default_setting.setdefault("tdapi_version", self.td_api.getApiVersion())
+        # self.default_setting.setdefault("mdapi_version", self.md_api.getApiVersion())
 
         self.count: int = 0
 

@@ -163,6 +163,9 @@ class CtptesttqGateway(BaseGateway):
         self.td_api: CtptestTdApi = CtptestTdApi(self)
         self.md_api: CtptestMdApi = CtptestMdApi(self)
 
+        self.default_setting.setdefault("tdapi_version", self.td_api.getApiVersion())
+        self.default_setting.setdefault("mdapi_version", self.md_api.getApiVersion())
+
         self.count: int = 0
         from .tqsdk_support import TqsdkSupport
         self.tqsdk = TqsdkSupport(self)

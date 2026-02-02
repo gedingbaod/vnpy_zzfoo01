@@ -1189,6 +1189,16 @@ class AboutDialog(QtWidgets.QDialog):
 
         from ... import __version__ as vnpy_version
 
+        for key, value in self.main_engine.gateways.items():
+            if key.startswith("CTP") or key.startswith("TTS"):
+                mdapi_version: str = value.get_default_setting()["mdapi_version"]
+                tdapi_version: str = value.get_default_setting()["tdapi_version"]
+                break
+        if not mdapi_version or not tdapi_version:
+            ctp_version: str = ""
+        else:
+            ctp_version: str = f"mdapi_version:{mdapi_version}  tdapi_version:{tdapi_version}"
+
         text: str = f"""
             By Traders, For Traders.
 
@@ -1199,7 +1209,7 @@ class AboutDialog(QtWidgets.QDialog):
             Website：www.vnpy.com
             Github：www.github.com/vnpy/vnpy
 
-
+            CTP_VERSION:{ctp_version}
             VeighNa - {vnpy_version}
             Python - {platform.python_version()}
             PySide6 - {metadata.version("pyside6")}
