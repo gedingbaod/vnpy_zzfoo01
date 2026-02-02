@@ -1191,11 +1191,17 @@ class AboutDialog(QtWidgets.QDialog):
 
         for key, value in self.main_engine.gateways.items():
             if key.startswith("CTP") or key.startswith("TTS"):
-                mdapi_version: str = value.get_default_setting()["mdapi_version"]
-                tdapi_version: str = value.get_default_setting()["tdapi_version"]
+                if "mdapi_version" in value.get_default_setting():
+                    mdapi_version: str = value.get_default_setting()["mdapi_version"]
+                else:
+                    mdapi_version: str = None
+                if "tdapi_version" in value.get_default_setting():
+                    tdapi_version: str = value.get_default_setting()["tdapi_version"]
+                else:
+                    tdapi_version: str = None
                 break
         if not mdapi_version or not tdapi_version:
-            ctp_version: str = ""
+            ctp_version: str = "未查到"
         else:
             ctp_version: str = f"mdapi_version:{mdapi_version}  tdapi_version:{tdapi_version}"
 
@@ -1209,7 +1215,7 @@ class AboutDialog(QtWidgets.QDialog):
             Website：www.vnpy.com
             Github：www.github.com/vnpy/vnpy
 
-            CTP_VERSION:{ctp_version}
+            CTP_VERSION: {ctp_version}
             VeighNa - {vnpy_version}
             Python - {platform.python_version()}
             PySide6 - {metadata.version("pyside6")}
