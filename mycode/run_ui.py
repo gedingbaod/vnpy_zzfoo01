@@ -4,12 +4,14 @@ from vnpy.trader.engine import MainEngine
 from vnpy.trader.ui import MainWindow, create_qapp
 
 
-CONN='CTPTEST'
+CONN='CTPTQTTS'
 # 这六个只能留一个，不然会报错
 if CONN == 'CTP':
     from vnpy_ctp import CtpGateway
 elif CONN == 'CTPTQ':
     from vnpy_ctptq import CtptqGateway
+elif CONN == 'CTPTQTTS':
+    from vnpy_ctptqtts import CtptqttsGateway
 elif CONN == 'CTPTEST':
     from vnpy_ctptest import CtptestGateway
 elif CONN == 'CTPTESTTQ':
@@ -66,6 +68,8 @@ def main():
         main_engine.add_gateway(CtpGateway)
     elif CONN == 'CTPTQ':
         main_engine.add_gateway(CtptqGateway, gateway_name=CONN)
+    elif CONN == 'CTPTQTTS':
+        main_engine.add_gateway(CtptqttsGateway, gateway_name=CONN)
     elif CONN == 'CTPTEST':
         main_engine.add_gateway(CtptestGateway, gateway_name=CONN)
     elif CONN == 'CTPTESTTQ':
