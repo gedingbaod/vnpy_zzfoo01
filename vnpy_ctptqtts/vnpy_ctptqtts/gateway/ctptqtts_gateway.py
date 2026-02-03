@@ -3,6 +3,9 @@ from datetime import datetime
 from time import sleep
 from pathlib import Path
 
+from common.gateway_tq import MARKET_SOURCE_TTS, MARKET_SOURCE_TQSDK, BaseGatewayTq
+from common.strategy_spread import EVENT_TQSDK_ORDER
+from common.tqsdk_gateway import TqSdkMdApi
 from vnpy.event import EventEngine, Event
 from vnpy.trader.constant import (
     Direction,
@@ -131,12 +134,13 @@ CHINA_TZ = ZoneInfo("Asia/Shanghai")       # 中国时区
 symbol_contract_map: dict[str, ContractData] = {}
 
 
-class CtptqttsGateway(BaseGateway):
+class CtptqttsGateway(BaseGatewayTq):
     """
     VeighNa用于对接期货CTP柜台的交易接口。
     """
 
-    default_name: str = "CTP"
+    # default_name: str = "CTP"
+    default_name: str = MARKET_SOURCE_TTS
 
     default_setting: dict[str, str | list[str]] = {  # type: ignore[assignment]
         "用户名": "",
@@ -146,7 +150,9 @@ class CtptqttsGateway(BaseGateway):
         "行情服务器": "",
         "产品名称": "",
         "授权编码": "",
-        "柜台环境": ["实盘", "测试"]
+        "柜台环境": ["实盘", "测试"],
+        "行情源": MARKET_SOURCE_TTS,
+        # TTS 或 TQSDK，界面启动时，会读取默认参数，用于初始化对话框中的属性
     }
 
     exchanges: list[Exchange] = list(EXCHANGE_CTP2VT.values())
@@ -157,6 +163,8 @@ class CtptqttsGateway(BaseGateway):
 
         self.td_api: CtpTdApi = CtpTdApi(self)
         self.md_api: CtpMdApi = CtpMdApi(self)
+        # self.default_setting.setdefault("tdapi_version", self.td_api.getApiVersion())
+        # self.default_setting.setdefault("mdapi_version", self.md_api.getApiVersion())
 
         self.count: int = 0
 
@@ -170,6 +178,8 @@ class CtptqttsGateway(BaseGateway):
         appid: str = setting["产品名称"]
         auth_code: str = setting["授权编码"]
         production_mode: bool = setting["柜台环境"] == "实盘"
+        market_source: str = setting.get("行情源", MARKET_SOURCE_TTS)  # 获取行情源配置，默认是TTS
+        self.market_source = market_source.upper()  # 保存行情源配置
 
         if (
             (not td_address.startswith("tcp://"))
@@ -186,13 +196,35 @@ class CtptqttsGateway(BaseGateway):
             md_address = "tcp://" + md_address
 
         self.td_api.connect(td_address, userid, password, brokerid, auth_code, appid, production_mode)
-        self.md_api.connect(md_address, userid, password, brokerid, production_mode)
+        # self.md_api.connect(md_address, userid, password, brokerid, production_mode)
+
+        # 根据配置选择行情源
+        if self.market_source == MARKET_SOURCE_TQSDK:
+            if not self.tqsdk_available:
+                self.write_log("警告：未安装tqsdk库，无法使用TQSDK行情源，将使用TTS行情源")
+                self.market_source = MARKET_SOURCE_TTS
+                self.md_api.connect(md_address, userid, password, brokerid)
+            else:
+                self.tq_md_api = TqSdkMdApi(self)
+                # 连接之前，默认是TTS，tq_md_api.subscribed为空，但是会有订阅输入
+                # 所以在TQSDK连接时，把这部分订阅，加入到TQSDK的订阅里
+                # TQSDK会在连接后，把这部分订阅执行
+                # 加锁，等待td_api更新完行情源，再进行tqsdk的连接
+                with self.update_map_condition:
+                    self.update_map_condition.wait()
+                    self.tq_md_api.subscribed.update(self.md_api.subscribed)
+                    self.tq_md_api.connect()
+        else:  # 默认使用TTS行情
+            self.md_api.connect(md_address, userid, password, brokerid)
 
         self.init_query()
 
     def subscribe(self, req: SubscribeRequest) -> None:
         """订阅行情"""
-        self.md_api.subscribe(req)
+        if self.market_source == MARKET_SOURCE_TQSDK and self.tq_md_api:
+            self.tq_md_api.subscribe(req)
+        else:  # 默认使用TTS行情
+            self.md_api.subscribe(req)
 
     def send_order(self, req: OrderRequest) -> str:
         """委托下单"""
@@ -213,7 +245,11 @@ class CtptqttsGateway(BaseGateway):
     def close(self) -> None:
         """关闭接口"""
         self.td_api.close()
-        self.md_api.close()
+        # 根据行情源关闭相应的行情API
+        if self.market_source == MARKET_SOURCE_TQSDK and self.tq_md_api:
+            self.tq_md_api.close()
+        else:
+            self.md_api.close()
 
     def write_error(self, msg: str, error: dict) -> None:
         """输出错误信息日志"""
@@ -230,11 +266,21 @@ class CtptqttsGateway(BaseGateway):
             return
         self.count = 0
 
+        # 0是query_account, 1是query_position
+        # 这里pop出来执行，然后又加回去，相当于一个循环队列
+        # 2秒执行query_account，下一个2两秒执行query_position
+        # 相当于每4秒执行一次query_account，query_position
+        # 两个函数交替执行
         func = self.query_functions.pop(0)
         func()
         self.query_functions.append(func)
 
-        self.md_api.update_date()
+        # self.md_api.update_date()
+        # 根据行情源更新日期
+        if self.market_source == MARKET_SOURCE_TQSDK and self.tq_md_api:
+            pass  # TQSDK不需要更新日期
+        else:
+            self.md_api.update_date()
 
     def init_query(self) -> None:
         """初始化查询任务"""
@@ -399,6 +445,13 @@ class CtpMdApi(MdApi):
 
     def subscribe(self, req: SubscribeRequest) -> None:
         """订阅行情"""
+        # 订阅逻辑分已连接和未连接
+        # 已连接情况，订阅合约，加入订阅列表
+        # 未连接情况，只加入订阅列表，在连接后会再调用一次订阅
+        # 过滤重复的订阅
+        if req.symbol in self.subscribed:
+            return
+
         if self.login_status:
             self.subscribeMarketData(req.symbol)
         self.subscribed.add(req.symbol)
@@ -518,6 +571,9 @@ class CtpTdApi(TdApi):
 
     def onRspOrderAction(self, data: dict, error: dict, reqid: int, last: bool) -> None:
         """委托撤单失败回报"""
+        if error:
+            event: Event = Event(type=EVENT_TQSDK_ORDER, data=[data, error, reqid])
+            self.gateway.event_engine.put(event)
         self.gateway.write_error("交易撤单失败", error)
 
     def onRspSettlementInfoConfirm(self, data: dict, error: dict, reqid: int, last: bool) -> None:
@@ -588,7 +644,25 @@ class CtpTdApi(TdApi):
         if last:
             for position in self.positions.values():
                 self.gateway.on_position(position)
+                # 第一版，通过枷锁同步处理
+                # 这里已经清空，之后的处理是拿不到仓位数量的
+                # 所以要存入临时变量，供tqsdk调用
+                # 因为会有同步问题，所以加锁
+                # with self.gateway.update_pos_condition:
+                #     self.gateway.positions_for_tqsdk.update(self.positions)
+                #     # 通知策略持仓更新（用于套利策略）
+                #     self.positions.clear()
+                #     self.gateway.update_pos_condition.notify()
 
+                # 第二版，通过回调处理
+                if self.gateway.tq_md_api and hasattr(self.gateway.tq_md_api, 'spread_strategy'):
+                    # 先清空，避免有残存数据
+                    # self.gateway.positions_for_tqsdk.clear()
+                    # self.gateway.positions_for_tqsdk.update(self.positions)
+                    strategy_positions = list(self.positions.values())
+                    self.gateway.tq_md_api.spread_strategy.on_position_update(strategy_positions)
+
+                # 原版只清空
             self.positions.clear()
 
     def onRspQryTradingAccount(self, data: dict, error: dict, reqid: int, last: bool) -> None:
@@ -645,6 +719,12 @@ class CtpTdApi(TdApi):
             self.contract_inited = True
             self.gateway.write_log("合约信息查询成功")
 
+            # 因为会有同步问题，所以加锁，等待更新合约后，再连接TQSDK
+            with self.gateway.update_map_condition:
+                # 更新合约到TQSDK
+                self.gateway.symbol_contract_map_tqsdk.update(symbol_contract_map)
+                self.gateway.update_map_condition.notify()
+
             for data in self.order_data:
                 self.onRtnOrder(data)
             self.order_data.clear()
@@ -697,6 +777,11 @@ class CtpTdApi(TdApi):
             gateway_name=self.gateway_name
         )
         self.gateway.on_order(order)
+
+        # zzfoo 通知TqSdkMdApi订单状态更新（用于套利策略）
+        vt_orderid: str = f"{self.gateway_name}.{orderid}"
+        if self.gateway.tq_md_api:
+            self.gateway.tq_md_api.on_order_status_update(vt_orderid, order.status)
 
         self.sysid_orderid_map[data["OrderSysID"]] = orderid
 
