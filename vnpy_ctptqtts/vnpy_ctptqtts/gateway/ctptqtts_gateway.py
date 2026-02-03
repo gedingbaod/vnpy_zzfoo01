@@ -4,7 +4,7 @@ from time import sleep
 from pathlib import Path
 
 from common.gateway_tq import MARKET_SOURCE_TTS, MARKET_SOURCE_TQSDK, BaseGatewayTq
-from common.strategy_spread import EVENT_TQSDK_ORDER
+from common.strategy_spread import EVENT_ERROR_ORDER
 from common.tqsdk_gateway import TqSdkMdApi
 from vnpy.event import EventEngine, Event
 from vnpy.trader.constant import (
@@ -572,7 +572,7 @@ class CtpTdApi(TdApi):
     def onRspOrderAction(self, data: dict, error: dict, reqid: int, last: bool) -> None:
         """委托撤单失败回报"""
         if error:
-            event: Event = Event(type=EVENT_TQSDK_ORDER, data=[data, error, reqid])
+            event: Event = Event(type=EVENT_ERROR_ORDER, data=[data, error, reqid])
             self.gateway.event_engine.put(event)
         self.gateway.write_error("交易撤单失败", error)
 

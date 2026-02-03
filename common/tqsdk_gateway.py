@@ -6,17 +6,19 @@ TQSDK行情API通用模块
 from __future__ import annotations
 
 import sys
+from collections import defaultdict
 from datetime import datetime, timedelta, time
 from time import sleep
 from threading import Thread
 from typing import Any, Union, Optional
 
+import pandas as pd
 from tqsdk.objs import Quote
 from tqsdk import TqApi, TqAuth
 
 from common.gateway_tq import BaseGatewayTq
-from common.strategy_spread import AgSpreadStrategy, KLINES_WINDOWS, KLINES_DURATION
-from vnpy.event.engine import EventEngine
+from common.strategy_spread import AgSpreadStrategy, KLINES_WINDOWS, KLINES_DURATION, EVENT_UPDATE_QUOTE
+from vnpy.event import Event
 from vnpy.trader.constant import (
     Direction,
     Offset,
@@ -103,8 +105,8 @@ class TqSdkMdApi:
         self.subscribed: set = set()
         self.klines_duration = KLINES_DURATION
         self.klines_data_length = KLINES_WINDOWS * 2
-        self.quotes: dict[str, Any] = {}  # 保存行情引用 {symbol: quote}
-        self.klines: dict[str, Any] = {}  # 保存行情引用 {symbol: kline}
+        self.quotes: dict[str, Quote] = defaultdict()  # 保存行情引用 {symbol: quote}
+        self.klines: dict[str, pd.DataFrame] = defaultdict()  # 保存行情引用 {symbol: kline}
 
         # 测试下单相关，代码已经被注释了
         self.order_placed: bool = False  # 是否已经下过单
@@ -138,7 +140,8 @@ class TqSdkMdApi:
             for symbol in self.subscribed:
                 # 在AgSpreadStrategy已经订阅了两个合约，这里真正订阅
                 self._subscribe_symbol(symbol)
-
+            event: Event = Event(type=EVENT_UPDATE_QUOTE)
+            self.gateway.event_engine.put(event)
         except Exception as e:
             self.gateway.write_log(f"TQSDK行情连接失败：{str(e)}")
 
@@ -294,7 +297,7 @@ class TqSdkMdApi:
         # 等待线程结束
         if self.thread and self.thread.is_alive():
             # 为了触发await_update解除阻塞，所以订阅了一个行情连接
-            _ = self.api.get_quote('ag2606')
+            _ = self.api.get_quote('ag2610')
             self.thread.join(timeout=5)
             self.thread = None
 

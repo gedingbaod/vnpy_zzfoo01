@@ -7,7 +7,7 @@ from threading import Thread, Condition
 from typing import Any, Union
 # from vnpy.trader.gateway import BaseGateway
 from common.gateway_tq import BaseGatewayTq, MARKET_SOURCE_TQSDK, MARKET_SOURCE_TTS
-from common.strategy_spread import EVENT_TQSDK_ORDER
+from common.strategy_spread import EVENT_ERROR_ORDER
 from common.vnpy_time import get_now
 from common.tqsdk_gateway import TqSdkMdApi  # 从common导入TQSDK行情API
 from vnpy.event.engine import EventEngine
@@ -578,7 +578,7 @@ class TtsTdApi(TdApi):
     def onRspOrderAction(self, data: dict, error: dict, reqid: int, last: bool) -> None:
         """委托撤单失败回报"""
         if error:
-            event: Event = Event(type=EVENT_TQSDK_ORDER, data=[data, error, reqid])
+            event: Event = Event(type=EVENT_ERROR_ORDER, data=[data, error, reqid])
             self.gateway.event_engine.put(event)
         self.gateway.write_error("交易撤单失败", error)
 

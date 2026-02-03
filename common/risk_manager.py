@@ -24,12 +24,26 @@ CLOSE_BEFORE_MINUTE = 15
 class RiskManager:
     """
     风险管理类
+    主要是一个定时任务线程，在线程内做风控检查
 
     负责监控交易风险，包括：
     - 收盘时间检查
     - 强制平仓
     - 停止新开仓
     """
+
+    # 这部分是class的属性
+    _instance = None
+    _lock = threading.Lock()  # 锁对象，保证线程安全
+
+    # 因为类里包含线程，所以创建为单例模式
+    def __new__(cls, *args, **kwargs):
+        # 双重检查锁（DCL）：提升性能，仅第一次创建时加锁
+        if cls._instance is None:
+            with cls._lock:  # 加锁，防止多线程同时创建
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+        return cls._instance
 
     def __init__(self, strategy: "BaseStrategy"):
         """
@@ -40,11 +54,12 @@ class RiskManager:
         strategy : SpreadTradingStrategy
             策略实例，用于访问策略状态、持仓、交易功能等
         """
-        self.strategy = strategy
-        self.thread: Thread = None  # 风险管理线程
-        self.active: bool = True  # 风险管理线程是否激活
-        # 用于打断wait()等待，使线程能快速退出
-        self.interrupt_event = threading.Event()
+        if not hasattr(self, "strategy"):
+            self.strategy = strategy
+            self.thread: Thread = None  # 风险管理线程
+            self.active: bool = True  # 风险管理线程是否激活
+            # 用于打断wait()等待，使线程能快速退出
+            self.interrupt_event = threading.Event()
 
     def start(self) -> None:
         """
@@ -94,33 +109,8 @@ class RiskManager:
                 # 每3分钟检查一次
                 self.interrupt_event.wait(180)
 
-                # 获取near合约的行情
-                if self.strategy.near_symbol not in self.strategy.gateway.tq_md_api.quotes:
-                    continue
-
-                near_quote = self.strategy.gateway.tq_md_api.quotes[self.strategy.near_symbol]
-                if not near_quote or near_quote.datetime == '':
-                    continue
-
-                # 检查是否进入收盘时间
-                if self._is_closing_time(near_quote):
-                    if not self.strategy.is_closing_time:
-                        # 为了提升性能，这里不加锁了，所以执行两次，避免同步问题
-                        self.strategy.is_closing_time = True
-                        self.strategy.is_closing_time = True
-                        self.strategy.gateway.write_log(f"进入收盘前{CLOSE_BEFORE_MINUTE}分钟，停止新开仓")
-
-                    # 强制平仓
-                    if self.strategy.spread_position:
-                        self.strategy.gateway.write_log("收盘前强制平仓")
-                        self.strategy.close_position(force=True)
-                else:
-                    # 已经不在收盘时间，重置标志
-                    if self.strategy.is_closing_time:
-                        self.strategy.gateway.write_log("已过收盘时间，恢复交易")
-                        # 为了提升性能，这里不加锁了，所以执行两次，避免同步问题
-                        self.strategy.is_closing_time = False
-                        self.strategy.is_closing_time = False
+                # 临时使用近月合约，后期可以再优化
+                self._check_closing_time(self.strategy.near_symbol)
 
             except Exception as e:
                 if self.active:
@@ -128,6 +118,32 @@ class RiskManager:
                 # break
 
         print("风险管理线程关闭")
+
+    def _check_closing_time(self, symbol: str) -> None:
+        # 获取near合约的行情
+        check_quote = self.strategy.gateway.tq_md_api.quotes.get(symbol, None)
+        if not check_quote or check_quote.datetime == '':
+            return
+
+        # 检查是否进入收盘时间
+        if self._is_closing_time(check_quote):
+            if not self.strategy.is_closing_time:
+                # 为了提升性能，这里不加锁了，所以执行两次，避免同步问题出现
+                self.strategy.is_closing_time = True
+                self.strategy.is_closing_time = True
+                self.strategy.gateway.write_log(f"进入收盘前{CLOSE_BEFORE_MINUTE}分钟，停止新开仓")
+
+            # 强制平仓
+            if self.strategy.global_position:
+                self.strategy.gateway.write_log("收盘前强制平仓")
+                self.strategy.close_position(force=True)
+        else:
+            # 已经不在收盘时间，重置标志
+            if self.strategy.is_closing_time:
+                self.strategy.gateway.write_log("已过收盘时间，恢复交易")
+                # 为了提升性能，这里不加锁了，所以执行两次，避免同步问题
+                self.strategy.is_closing_time = False
+                self.strategy.is_closing_time = False
 
     def _is_closing_time(self, quote: Quote) -> bool:
         """
