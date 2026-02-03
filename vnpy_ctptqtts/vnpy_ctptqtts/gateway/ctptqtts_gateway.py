@@ -659,7 +659,7 @@ class CtpTdApi(TdApi):
                     # 先清空，避免有残存数据
                     # self.gateway.positions_for_tqsdk.clear()
                     # self.gateway.positions_for_tqsdk.update(self.positions)
-                    strategy_positions = list(self.positions.values())
+                    strategy_positions: list[PositionData] = list(self.positions.values())
                     self.gateway.tq_md_api.spread_strategy.on_position_update(strategy_positions)
 
                 # 原版只清空
