@@ -118,7 +118,7 @@ class RiskManager:
                 # 检查价格限制
                 rt2 = self._check_price_limit()
                 # 逻辑与，全为True，结果为True
-                self.strategy.is_tradable = (not rt1) and rt2
+                self.strategy.is_tradable = (not rt1) and (not rt2)
 
                 # 强制平仓
                 if rt1 and self.strategy.global_position:
@@ -197,8 +197,8 @@ class RiskManager:
             是否接近涨跌停（True表示停止交易）
         """
         try:
-            near_quote = self.strategy.speard_quotes[0]
-            far_quote = self.strategy.speard_quotes[1]
+            near_quote = self.strategy.spread_quotes[0]
+            far_quote = self.strategy.spread_quotes[1]
             # 计算near合约的涨跌停幅度
             near_upper_move = (near_quote.upper_limit - near_quote.pre_settlement) * self.strategy.max_price_limit_ratio
             near_lower_move = (near_quote.pre_settlement - near_quote.lower_limit) * self.strategy.max_price_limit_ratio

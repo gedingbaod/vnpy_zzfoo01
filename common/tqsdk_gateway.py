@@ -18,7 +18,7 @@ from tqsdk import TqApi, TqAuth
 
 from common.gateway_tq import BaseGatewayTq
 from common.risk_manager import RiskManager
-from common.strategy_spread import AgSpreadStrategy, KLINES_WINDOWS, KLINES_DURATION, EVENT_UPDATE_QUOTE
+from common.strategy_spread import AgSpreadStrategy, EVENT_UPDATE_QUOTE, SnSpreadStrategy
 from vnpy.event import Event
 from vnpy.trader.constant import (
     Direction,
@@ -104,8 +104,6 @@ class TqSdkMdApi:
 
         # 在未连接前，还无法订阅行情，此处保存要订阅的数据，连接之后会再调用一次订阅
         self.subscribed: set = set()
-        self.klines_duration = KLINES_DURATION
-        self.klines_data_length = KLINES_WINDOWS * 2
         self.quotes: dict[str, Quote] = defaultdict()  # 保存行情引用 {symbol: quote}
         self.klines: dict[str, pd.DataFrame] = defaultdict()  # 保存行情引用 {symbol: kline}
 
@@ -115,7 +113,8 @@ class TqSdkMdApi:
         self.traded_vt_orderids: set = set()  # 已成交的订单ID集合
 
         # 跨期套利策略（使用策略类管理）
-        self.spread_strategy = AgSpreadStrategy(gateway)
+        # self.spread_strategy = AgSpreadStrategy(gateway)
+        self.spread_strategy = SnSpreadStrategy(gateway)
 
         # 创建风险管理器
         self.risk_manager = RiskManager(strategy=self.spread_strategy)
@@ -186,7 +185,7 @@ class TqSdkMdApi:
         try:
             # 获取行情引用（自动订阅）
             quote = self.api.get_quote(tq_symbol)
-            kline = self.api.get_kline_serial(tq_symbol, self.klines_duration, self.klines_data_length)
+            kline = self.api.get_kline_serial(tq_symbol, self.spread_strategy.klines_duration, self.spread_strategy.klines_windows * 2)
 
             # 保存行情引用
             self.quotes[symbol] = quote
