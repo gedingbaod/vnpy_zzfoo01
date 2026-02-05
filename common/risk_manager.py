@@ -19,7 +19,11 @@ if TYPE_CHECKING:
 
 # 收盘前多少分钟停止交易
 CLOSE_BEFORE_MINUTE = 15
-
+EXCHANGE_TRADE_TIME: dict[str, dict] = {
+    "ag": {"day": [["09:00:00", "10:15:00"], ["10:30:00", "11:30:00"], ["13:30:00", "15:00:00"]], "night": [["21:00:00", "26:30:00"]]},
+    "ni": {"day": [["09:00:00", "10:15:00"], ["10:30:00", "11:30:00"], ["13:30:00", "15:00:00"]], "night": [["21:00:00", "25:00:00"]]},
+    "sn": {"day": [["09:00:00", "10:15:00"], ["10:30:00", "11:30:00"], ["13:30:00", "15:00:00"]], "night": [["21:00:00", "25:00:00"]]},
+}
 
 class RiskManager:
     """
@@ -107,10 +111,19 @@ class RiskManager:
         while self.active:
             try:
                 # 每3分钟检查一次
-                self.interrupt_event.wait(180)
+                self.interrupt_event.wait(10)
 
                 # 临时使用近月合约，后期可以再优化
-                self._check_closing_time(self.strategy.near_symbol)
+                rt1 = self._check_closing_time()
+                # 检查价格限制
+                rt2 = self._check_price_limit()
+                # 逻辑与，全为True，结果为True
+                self.strategy.is_tradable = (not rt1) and rt2
+
+                # 强制平仓
+                if rt1 and self.strategy.global_position:
+                    self.strategy.gateway.write_log("收盘前强制平仓")
+                    self.strategy.close_position(force=True)
 
             except Exception as e:
                 if self.active:
@@ -119,56 +132,28 @@ class RiskManager:
 
         print("风险管理线程关闭")
 
-    def _check_closing_time(self, symbol: str) -> None:
-        # 获取near合约的行情
-        check_quote = self.strategy.gateway.tq_md_api.quotes.get(symbol, None)
-        if not check_quote or check_quote.datetime == '':
-            return
-
-        # 检查是否进入收盘时间
-        if self._is_closing_time(check_quote):
-            if not self.strategy.is_closing_time:
-                # 为了提升性能，这里不加锁了，所以执行两次，避免同步问题出现
-                self.strategy.is_closing_time = True
-                self.strategy.is_closing_time = True
-                self.strategy.gateway.write_log(f"进入收盘前{CLOSE_BEFORE_MINUTE}分钟，停止新开仓")
-
-            # 强制平仓
-            if self.strategy.global_position:
-                self.strategy.gateway.write_log("收盘前强制平仓")
-                self.strategy.close_position(force=True)
-        else:
-            # 已经不在收盘时间，重置标志
-            if self.strategy.is_closing_time:
-                self.strategy.gateway.write_log("已过收盘时间，恢复交易")
-                # 为了提升性能，这里不加锁了，所以执行两次，避免同步问题
-                self.strategy.is_closing_time = False
-                self.strategy.is_closing_time = False
-
-    def _is_closing_time(self, quote: Quote) -> bool:
+    def _check_closing_time(self) -> bool:
         """
         判断是否处于收盘前15分钟
-
-        Parameters
-        ----------
-        quote : Quote
-            行情数据
 
         Returns
         -------
         bool
             是否处于收盘前15分钟
         """
-        # 交易时段格式：'trading_time': {"day": [["09:00:00", "10:15:00"], ["10:30:00", "11:30:00"], ["13:30:00", "15:00:00"]], "night": [["21:00:00", "26:30:00"]]}
-        trading_time = quote.trading_time
+
+        # 取合约前两个字符
+        symbol_2c = self.strategy.get_symbols()[0][0:2]
+        symbol_2c = symbol_2c.lower()
+        symbol_trading_time = EXCHANGE_TRADE_TIME[symbol_2c]
         current_time = datetime.now().time()
 
         # 遍历所有交易时段（day和night）
         for period_type in ["day", "night"]:
-            if period_type not in trading_time:
+            if period_type not in symbol_trading_time:
                 continue
 
-            periods = trading_time[period_type]
+            periods = symbol_trading_time[period_type]
             second_end_hour = int(periods[0][1].split(':')[0])
             if second_end_hour > 23:
                 # 如果隔夜就拆成两队
@@ -194,3 +179,52 @@ class RiskManager:
                     return True
 
         return False
+
+    def _check_price_limit(self) -> bool:
+        """
+        检查是否接近涨跌停
+
+        Parameters
+        ----------
+        near_quote : Quote
+            近月合约行情
+        far_quote : Quote
+            远月合约行情
+
+        Returns
+        -------
+        bool
+            是否接近涨跌停（True表示停止交易）
+        """
+        try:
+            near_quote = self.strategy.speard_quotes[0]
+            far_quote = self.strategy.speard_quotes[1]
+            # 计算near合约的涨跌停幅度
+            near_upper_move = (near_quote.upper_limit - near_quote.pre_settlement) * self.strategy.max_price_limit_ratio
+            near_lower_move = (near_quote.pre_settlement - near_quote.lower_limit) * self.strategy.max_price_limit_ratio
+
+            # 计算far合约的涨跌停幅度
+            far_upper_move = (far_quote.upper_limit - far_quote.pre_settlement) * self.strategy.max_price_limit_ratio
+            far_lower_move = (far_quote.pre_settlement - far_quote.lower_limit) * self.strategy.max_price_limit_ratio
+
+            # 检查当前价格变动
+            near_change = near_quote.last_price - near_quote.pre_settlement
+            far_change = far_quote.last_price - far_quote.pre_settlement
+
+            # 如果接近涨跌停，返回True
+            if near_change >= near_upper_move or near_change <= -near_lower_move:
+                self.strategy.gateway.write_log(f"{near_quote.instrument_name}接近涨跌停，停止交易")
+                return True
+            if far_change >= far_upper_move or far_change <= -far_lower_move:
+                self.strategy.gateway.write_log(f"{far_quote.instrument_name}接近涨跌停，停止交易")
+                return True
+
+            return False
+        except Exception as e:
+            self.strategy.gateway.write_log(f"检查涨跌停异常: {str(e)}")
+            return False
+
+if __name__ == "__main__":
+    symbol_short = "ni"
+    symbol_trading_time = EXCHANGE_TRADE_TIME[symbol_short]
+    print(symbol_trading_time)

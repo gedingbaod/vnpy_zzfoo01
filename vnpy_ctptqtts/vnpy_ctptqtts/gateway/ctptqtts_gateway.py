@@ -164,7 +164,7 @@ class CtptqttsGateway(BaseGatewayTq):
         self.td_api: CtpTdApi = CtpTdApi(self)
         self.md_api: CtpMdApi = CtpMdApi(self)
         # self.default_setting.setdefault("tdapi_version", self.td_api.getApiVersion())
-        # self.default_setting.setdefault("mdapi_version", self.md_api.getApiVersion())
+        # self.default_setting.setdefault("mdapi_version", CtpMdApi.md_api.getApiVersion())
 
         self.count: int = 0
 

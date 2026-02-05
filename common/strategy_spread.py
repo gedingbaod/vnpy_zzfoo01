@@ -64,12 +64,11 @@ class BaseStrategy(ABC):
 
     def __init__(self, gateway: "BaseGatewayTq"):
         self.gateway = gateway
-        self.is_closing_time: bool = False  # 是否处于收盘前15分钟，为True时停止开新仓
 
-        # 创建风险管理器
-        self.risk_manager = RiskManager(strategy=self)
-        # 启动风险管理线程
-        self.risk_manager.start()
+        # 是否可交易
+        self.is_tradable = False
+
+        self.max_price_limit_ratio = 0.8  # 涨跌停限制比例
 
         # 持仓状态字典（跨期套利特有）
         # 结构：{"spread_position": {...}}
@@ -103,7 +102,17 @@ class BaseStrategy(ABC):
         # status: 订单状态（Status枚举：SUBMITTING, NOTTRADED, PARTTRADED, ALLTRADED, CANCELLED, REJECTED）
         self.order_status_map: dict = {}
 
-    def stop(self):
+        # 0是近期，1是远期
+        self.speard_quotes: list[Quote] = []
+        self.spread_klines: list[pd.DataFrame] = []
+
+    def start(self):
+        """启动策略"""
+        # 停止风险管理线程
+        if hasattr(self, 'risk_manager'):
+            self.risk_manager.start()
+
+    def stop(self) -> None:
         """停止策略"""
         # 停止风险管理线程
         if hasattr(self, 'risk_manager'):
@@ -114,43 +123,10 @@ class BaseStrategy(ABC):
         # 平仓函数
         pass
 
-    def _cancel_order_only(self, vt_orderid: str) -> None:
-        """
-        仅撤销订单，不处理待成交订单列表（通用方法）
-
-        Parameters
-        ----------
-        vt_orderid : str
-            订单ID
-        """
-        try:
-            symbol = None
-            # 尝试从pending_orders中获取
-            if vt_orderid in self.pending_orders:
-                symbol = self.pending_orders[vt_orderid]["symbol"]
-
-            # 如果找不到，从订单ID中提取symbol
-            if not symbol:
-                parts = vt_orderid.split('.')
-                symbol = parts[1] if len(parts) > 1 else vt_orderid.split('_')[0]
-
-            contract = self.gateway.symbol_contract_map_tqsdk.get(symbol)
-            if contract:
-                # vt_orderid格式: GATEWAYNAME.orderid
-                parts = vt_orderid.split('.')
-                orderid = parts[-1] if len(parts) > 1 else vt_orderid
-
-                req = CancelRequest(
-                    orderid=orderid,
-                    symbol=symbol,
-                    exchange=contract.exchange
-                )
-                self.gateway.cancel_order(req)
-                self.gateway.write_log(f"撤销订单: {vt_orderid}")
-
-        except Exception as e:
-            self.gateway.write_log(f"撤销订单异常: {str(e)}")
-
+    @abstractmethod
+    def get_symbols(self) -> list[str]:
+        # 平仓函数
+        pass
 
 class SpreadTradingStrategy(BaseStrategy):
     """
@@ -178,25 +154,17 @@ class SpreadTradingStrategy(BaseStrategy):
         self.near_symbol = near_symbol
         self.far_symbol = far_symbol
         self.exchange = exchange
-        # 0是近期，1是远期
-        self.speard_quotes: list[Quote] = []
-        self.spread_klines: list[pd.DataFrame] = []
 
         # 策略参数（默认值，子类可以覆盖）
-        # self.upper_band = 105          # 上轨：做空差价开仓阈值
-        # self.middle_band = 35          # 中轨：平仓阈值
-        # self.lower_band = -30          # 下轨：做多差价开仓阈值
         self.transaction_volume = DEFAULT_SLOT    # 交易手数
         self.order_timeout = 0.8       # 订单超时时间（秒）
         self.max_spread_cost = 25      # 最大买卖价差成本
         self.stop_loss_points = 50     # 止损点数
-        self.max_price_limit_ratio = 0.8  # 涨跌停限制比例
+
 
         # 计算成本用
         self.current_spread_indicator = None
         self.static_spread_cost = COMMISION_COST + SLIPPAGE_COST + AG_MIN_PROFIT
-
-
 
         # 状态标志（跨期套利特有）
         self.position_loaded: bool = False  # 是否已经加载过持仓信息，True后才开始交易
@@ -204,6 +172,9 @@ class SpreadTradingStrategy(BaseStrategy):
 
         # 注册订单异常等事件
         self.init_Event()
+
+    def get_symbols(self) -> list[str]:
+        return [self.near_symbol, self.far_symbol]
 
     def check_and_run(self, quotes_sub: Dict[str, Quote], klines_sub: Dict[str, pd.DataFrame]) -> None:
         """
@@ -319,8 +290,8 @@ class SpreadTradingStrategy(BaseStrategy):
             远月合约行情对象，包含价格、成交量、涨跌停等信息
         """
 
-        # 如果处于收盘时间，不执行任何交易逻辑
-        if self.is_closing_time:
+        # 检查不可交易状态，由RiskManager控制
+        if not self.is_tradable:
             return
 
         try:
@@ -345,10 +316,10 @@ class SpreadTradingStrategy(BaseStrategy):
             #     self.gateway.write_log(f"买卖价差成本过大: {spread_cost}，超过{self.max_spread_cost}，停止交易")
             #     return
 
-            # 风控检查2：涨跌停检查
-            # 检查价格是否接近涨跌停，是则停止交易
-            if self._check_price_limit(near_quote, far_quote):
-                return  # 接近涨跌停，停止交易
+            # # 风控检查2：涨跌停检查
+            # # 检查价格是否接近涨跌停，是则停止交易
+            # if self._check_price_limit(near_quote, far_quote):
+            #     return  # 接近涨跌停，停止交易
 
             # 风控检查3：待成交订单检查
             # 如果有待成交订单，检查是否超时，然后返回等待订单成交或超时
@@ -358,7 +329,9 @@ class SpreadTradingStrategy(BaseStrategy):
 
             # 获取当前持仓类型（"short_spread"|"long_spread"|None）
             position = self.global_position.get("spread_position", None)
-            if position is None and not self.is_closing_time:
+            # 如果已有持仓，不允许开新仓（因为transaction_volume=1，只允许1手持仓）
+            # 如果未持仓才进入寻找开仓机会
+            if position is None:
                 # 空仓检查开仓
                 self._check_open_opportunity(real_short_spread, real_long_spread, near_quote, far_quote)
                 return
@@ -399,9 +372,6 @@ class SpreadTradingStrategy(BaseStrategy):
         far_quote : Quote
             远月合约行情
         """
-        # 先检查是否可以开仓（控制仓位，只允许1手持仓）
-        if not self._check_can_open_position():
-            return
 
         (mean, std, upper_bound, lower_bound) = self.current_spread_indicator
         # 做空价差：价差过高（>105）
@@ -584,9 +554,9 @@ class SpreadTradingStrategy(BaseStrategy):
                 self.gateway.write_log("做空价差开仓失败")
                 # 清理部分订单（如果有一个订单发送成功，另一个失败）
                 if order_id_near:
-                    self._cancel_order_only(order_id_near)
+                    self._cancel_order(order_id_near, False)
                 if order_id_far:
-                    self._cancel_order_only(order_id_far)
+                    self._cancel_order(order_id_near, False)
                 if "spread_position" in self.global_position:
                     del self.global_position["spread_position"]
 
@@ -649,7 +619,7 @@ class SpreadTradingStrategy(BaseStrategy):
                 reference=f"spread_long_far_{self.far_symbol}"
             )
             order_id_far = self.gateway.send_order(req_far)
-
+            # 返回订单id，如果发送失败返回""
             if order_id_near and order_id_far:
                 # 记录待成交订单（用于超时检查和状态跟踪）
                 create_time = datetime.now().timestamp()
@@ -691,9 +661,9 @@ class SpreadTradingStrategy(BaseStrategy):
                 self.gateway.write_log("做多价差开仓失败")
                 # 清理部分订单（如果有一个订单发送成功，另一个失败）
                 if order_id_near:
-                    self._cancel_order_only(order_id_near)
+                    self._cancel_order(order_id_near, False)
                 if order_id_far:
-                    self._cancel_order_only(order_id_far)
+                    self._cancel_order(order_id_near, False)
                 if "spread_position" in self.global_position:
                     del self.global_position["spread_position"]
 
@@ -789,10 +759,6 @@ class SpreadTradingStrategy(BaseStrategy):
         self.speard_quotes.append(self.gateway.tq_md_api.quotes[self.far_symbol])
         self.spread_klines.append(self.gateway.tq_md_api.klines[self.near_symbol])
         self.spread_klines.append(self.gateway.tq_md_api.klines[self.far_symbol])
-
-    def stop(self) -> None:
-        """停止策略"""
-        super().stop()
 
     def on_position_update(self, positions: list[PositionData]) -> None:
         """持仓更新回调（从TdApi的onRspQryInvestorPosition调用）
@@ -1003,22 +969,6 @@ class SpreadTradingStrategy(BaseStrategy):
         except Exception as e:
             self.gateway.write_log(f"发送平仓订单异常: {str(e)}")
 
-    def _check_can_open_position(self) -> bool:
-        """
-        检查是否可以开新仓
-
-        Returns
-        -------
-        bool
-            True表示可以开仓，False表示已有持仓不允许开仓
-        """
-        # 如果已有持仓，不允许开新仓（因为transaction_volume=1，只允许1手持仓）
-        if self.global_position.get("spread_position"):
-            self.gateway.write_log(f"已有持仓，不允许开新仓")
-            return False
-
-        return True
-
     def _check_pending_orders_timeout(self) -> None:
         """检查待成交订单超时"""
         try:
@@ -1040,7 +990,7 @@ class SpreadTradingStrategy(BaseStrategy):
         except Exception as e:
             self.gateway.write_log(f"检查订单超时异常: {str(e)}")
 
-    def _cancel_order(self, vt_orderid: str) -> None:
+    def _cancel_order(self, vt_orderid: str, del_pending: bool = True) -> None:
         """
         撤销订单
 
@@ -1068,7 +1018,8 @@ class SpreadTradingStrategy(BaseStrategy):
                     self.gateway.write_log(f"撤销订单: {vt_orderid}")
 
                 # 从待成交订单中移除
-                del self.pending_orders[vt_orderid]
+                if del_pending:
+                    del self.pending_orders[vt_orderid]
 
         except Exception as e:
             self.gateway.write_log(f"撤销订单异常: {str(e)}")
@@ -1204,47 +1155,7 @@ class SpreadTradingStrategy(BaseStrategy):
 
         return True
 
-    def _check_price_limit(self, near_quote: Quote, far_quote: Quote) -> bool:
-        """
-        检查是否接近涨跌停
 
-        Parameters
-        ----------
-        near_quote : Quote
-            近月合约行情
-        far_quote : Quote
-            远月合约行情
-
-        Returns
-        -------
-        bool
-            是否接近涨跌停（True表示停止交易）
-        """
-        try:
-            # 计算near合约的涨跌停幅度
-            near_upper_move = (near_quote.upper_limit - near_quote.pre_settlement) * self.max_price_limit_ratio
-            near_lower_move = (near_quote.pre_settlement - near_quote.lower_limit) * self.max_price_limit_ratio
-
-            # 计算far合约的涨跌停幅度
-            far_upper_move = (far_quote.upper_limit - far_quote.pre_settlement) * self.max_price_limit_ratio
-            far_lower_move = (far_quote.pre_settlement - far_quote.lower_limit) * self.max_price_limit_ratio
-
-            # 检查当前价格变动
-            near_change = near_quote.last_price - near_quote.pre_settlement
-            far_change = far_quote.last_price - far_quote.pre_settlement
-
-            # 如果接近涨跌停，返回True
-            if near_change >= near_upper_move or near_change <= -near_lower_move:
-                self.gateway.write_log(f"{self.near_symbol}接近涨跌停，停止交易")
-                return True
-            if far_change >= far_upper_move or far_change <= -far_lower_move:
-                self.gateway.write_log(f"{self.far_symbol}接近涨跌停，停止交易")
-                return True
-
-            return False
-        except Exception as e:
-            self.gateway.write_log(f"检查涨跌停异常: {str(e)}")
-            return False
 
     def close_position(self, force: bool = False) -> None:
         """
@@ -1320,7 +1231,8 @@ class AgSpreadStrategy(SpreadTradingStrategy):
             Gateway实例
         """
         # super().__init__(gateway, "ag2604", "ag2606", Exchange.SHFE)
-        super().__init__(gateway, "sn2603", "sn2604", Exchange.SHFE)
+        # super().__init__(gateway, "sn2603", "sn2604", Exchange.SHFE)
+        super().__init__(gateway, "ni2603", "ni2605", Exchange.SHFE)
         # 设置白银特定的策略参数
         # self.upper_band = 105           # 上轨：做空差价开仓阈值
         # self.middle_band = 35           # 中轨：平仓阈值

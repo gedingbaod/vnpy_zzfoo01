@@ -17,6 +17,7 @@ from tqsdk.objs import Quote
 from tqsdk import TqApi, TqAuth
 
 from common.gateway_tq import BaseGatewayTq
+from common.risk_manager import RiskManager
 from common.strategy_spread import AgSpreadStrategy, KLINES_WINDOWS, KLINES_DURATION, EVENT_UPDATE_QUOTE
 from vnpy.event import Event
 from vnpy.trader.constant import (
@@ -116,6 +117,9 @@ class TqSdkMdApi:
         # 跨期套利策略（使用策略类管理）
         self.spread_strategy = AgSpreadStrategy(gateway)
 
+        # 创建风险管理器
+        self.risk_manager = RiskManager(strategy=self.spread_strategy)
+
         # TQSDK认证
         self.auth = auth if auth else (tq_auth if TQ_AUTH_AVAILABLE else None)
 
@@ -142,6 +146,9 @@ class TqSdkMdApi:
                 self._subscribe_symbol(symbol)
             event: Event = Event(type=EVENT_UPDATE_QUOTE)
             self.gateway.event_engine.put(event)
+
+            self.risk_manager.start()
+
         except Exception as e:
             self.gateway.write_log(f"TQSDK行情连接失败：{str(e)}")
 
@@ -316,8 +323,7 @@ class TqSdkMdApi:
         self.gateway.write_log("TQSDK行情连接已关闭")
         print("TQSDK行情连接已关闭")
 
-        if self.spread_strategy.thread_active:
-            self.spread_strategy.stop()
+        self.risk_manager.stop()
 
     # ==================== 测试相关方法 ====================
     # def _order_ag2604(self, symbol: str, quote: Quote) -> None:
