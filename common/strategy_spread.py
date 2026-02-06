@@ -17,7 +17,8 @@ import pandas as pd
 from tqsdk.objs import Quote
 
 from vnpy.trader.constant import Direction, Offset, Exchange, OrderType, Status
-from vnpy.trader.object import OrderRequest, CancelRequest, SubscribeRequest, PositionData
+from vnpy.trader.event import EVENT_ORDER
+from vnpy.trader.object import OrderRequest, CancelRequest, SubscribeRequest, PositionData, OrderData
 from vnpy.event import Event
 
 if TYPE_CHECKING:
@@ -104,6 +105,18 @@ class BaseStrategy(ABC):
         self.spread_quotes: list[Quote] = []
         self.spread_klines: list[pd.DataFrame] = []
 
+        # 注册订单异常等事件
+        self.init_Base_Event()
+
+    def init_Base_Event(self) -> None:
+        """注册回调事件"""
+        self.gateway.event_engine.register(EVENT_ORDER, self.process_order_event)
+
+    def process_order_event(self, event: Event) -> None:
+        """处理委托事件"""
+        order: OrderData = event.data
+        self.on_order_status_update(order.vt_orderid, order.status)
+
     def start(self):
         """启动策略"""
         # 停止风险管理线程
@@ -123,6 +136,11 @@ class BaseStrategy(ABC):
 
     @abstractmethod
     def get_symbols(self) -> list[str]:
+        # 平仓函数
+        pass
+
+    @abstractmethod
+    def on_order_status_update(self, vt_orderid: str, status: Status) -> None:
         # 平仓函数
         pass
 
@@ -869,9 +887,8 @@ class SpreadTradingStrategy(BaseStrategy):
 
                 # 从待成交订单中移除
                 del self.pending_orders[vt_orderid]
+                # 也可能两个单都被拒或取消，所以这里不对单腿做处理
 
-                # 处理单腿成交（如果另一条腿已经成交，需要立即平仓）
-                self._handle_partial_fill()
 
         except Exception as e:
             self.gateway.write_log(f"订单状态更新异常: {str(e)}")
@@ -887,8 +904,6 @@ class SpreadTradingStrategy(BaseStrategy):
         error: dict = error_event_data[1]
         reqid: int = error_event_data[2]
         self.gateway.write_log(f"订单错误：{data} 错误信息：{error}  reqid:{reqid}")
-        # if error and error["ErrorID"]==1011:
-        #     self.pending_orders
 
     def on_subscribe_quote(self, event: Event) -> None:
         self.spread_quotes.append(self.gateway.tq_md_api.quotes[self.near_symbol])
