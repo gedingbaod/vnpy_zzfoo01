@@ -678,12 +678,12 @@ class CtpTdApi(TdApi):
                 #     self.gateway.update_pos_condition.notify()
 
                 # 第二版，通过回调处理
-                if self.gateway.tq_md_api and hasattr(self.gateway.tq_md_api, 'spread_strategy'):
+                # if self.gateway.tq_md_api and hasattr(self.gateway.tq_md_api, 'spread_strategy'):
                     # 先清空，避免有残存数据
                     # self.gateway.positions_for_tqsdk.clear()
                     # self.gateway.positions_for_tqsdk.update(self.positions)
-                    strategy_positions: list[PositionData] = list(self.positions.values())
-                    self.gateway.tq_md_api.spread_strategy.on_position_update(strategy_positions)
+                    # strategy_positions: list[PositionData] = list(self.positions.values())
+                    # self.gateway.tq_md_api.spread_strategy.on_position_update(strategy_positions)
 
                 # 原版只清空
             self.positions.clear()

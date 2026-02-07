@@ -287,14 +287,14 @@ class TqSdkMdApi:
             self.gateway.write_log(f"TQSDK行情数据转换异常 [{symbol}]：{str(e)}")
 
 
-    def on_order_status_update(self, vt_orderid: str, status: Status) -> None:
-        """
-        订单状态更新回调（从TdApi调用）
-
-        将订单状态更新转发给策略处理
-        """
-        # 转发给策略处理
-        self.spread_strategy.on_order_status_update(vt_orderid, status)
+    # def on_order_status_update(self, vt_orderid: str, status: Status) -> None:
+    #     """
+    #     订单状态更新回调（从TdApi调用）
+    #
+    #     将订单状态更新转发给策略处理
+    #     """
+    #     # 转发给策略处理
+    #     self.spread_strategy.on_order_status_update(vt_orderid, status)
 
     def close(self) -> None:
         """关闭连接"""
