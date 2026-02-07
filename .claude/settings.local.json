@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(notebooklm login:*)",
+      "Bash(python -m py_compile:*)"
+    ]
+  }
+}
