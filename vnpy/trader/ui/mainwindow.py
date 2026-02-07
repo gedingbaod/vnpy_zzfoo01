@@ -10,7 +10,7 @@ from typing import TypeVar
 from collections.abc import Callable
 
 import vnpy
-from vnpy.event import EventEngine
+from vnpy.event import EventEngine, Event
 
 from .qt import QtCore, QtGui, QtWidgets
 from .widget import (
@@ -158,7 +158,12 @@ class MainWindow(QtWidgets.QMainWindow):
             get_icon_path(__file__, "restore.ico"),
             self.restore_window_setting
         )
-
+        self.add_action(
+            help_menu,
+            _("发送测试信号"),
+            get_icon_path(__file__, "email.ico"),
+            self.send_test_event
+        )
         self.add_action(
             help_menu,
             _("测试邮件"),
@@ -331,3 +336,10 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         dialog: GlobalDialog = GlobalDialog()
         dialog.exec()
+
+    def send_test_event(self) -> None:
+        """
+        发送测试信号
+        """
+        event: Event = Event('eSendTestEvent')
+        self.event_engine.put(event)

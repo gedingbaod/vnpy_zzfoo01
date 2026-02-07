@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import math
 import sys
+from enum import Enum
+import time as lazy_time
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from datetime import datetime, timedelta, time
@@ -30,10 +32,21 @@ MAX_FLOAT = sys.float_info.max
 EVENT_ERROR_ORDER = "eTqsdkOrder"
 # Quote更新事件，用于注册
 EVENT_UPDATE_QUOTE = "eTqsdkUpdateQuote"
+# 测试消息
+EVENT_SEND_TEST = 'eSendTestEvent'
 # 空差持仓
 SHORT_SPREAD_TYPE = "short_spread"
 # 多差持仓
 LONG_SPREAD_TYPE = "long_spread"
+
+class PositionStatus(Enum):
+    """
+    仓位状态
+    """
+    CLOSED = "已平仓"
+    OPENING = "开仓中"
+    OPENED = "已开仓"
+    CLOSING = "平仓中"
 
 def adjust_price(price: float) -> float:
     """将异常的浮点数最大值（MAX_FLOAT）数据调整为0"""
@@ -41,23 +54,21 @@ def adjust_price(price: float) -> float:
         price = 0
     return price
 
-def get_market_price(near_quote: Quote, far_quote: Quote, exchange: Exchange, position_type) -> tuple[
-    Literal[OrderType.LIMIT, OrderType.MARKET], float, float]:
-    # 两家上海的交易所不支持市价指令，使用涨跌停价回撤10%作为市价
-
-    if exchange in [Exchange.SHFE, Exchange.INE]:
-        order_type = OrderType.LIMIT
-        if position_type == SHORT_SPREAD_TYPE:
-            near_price = near_quote.lower_limit + (near_quote.pre_settlement - near_quote.lower_limit) * 0.1
-            far_price = far_quote.upper_limit - (far_quote.upper_limit - far_quote.pre_settlement) * 0.1
-        else:
-            near_price = near_quote.upper_limit -(near_quote.upper_limit - near_quote.pre_settlement) * 0.1
-            far_price = far_quote.lower_limit + (far_quote.pre_settlement - far_quote.lower_limit) * 0.1
+def round_to_10(x, mode="round"):
+    """
+    将数值规整为10的整数倍
+    :param x: 原始数值
+    :param mode: 取整规则：round(四舍五入)、floor(向下取整)、ceil(向上取整)
+    :return: 10的整数倍数值
+    """
+    if mode == "round":
+        return round(x / 10) * 10  # 四舍五入（如14→10，16→20）
+    elif mode == "floor":
+        return (x // 10) * 10      # 向下取整（如19→10，21→20）
+    elif mode == "ceil":
+        return ((x + 9) // 10) * 10 # 向上取整（如11→20，20→20）
     else:
-        order_type = OrderType.MARKET
-        near_price = 0.0
-        far_price = 0.0
-    return order_type, far_price, near_price
+        raise ValueError("mode只能是round/floor/ceil")
 
 class BaseStrategy(ABC):
 
@@ -174,13 +185,14 @@ class SpreadTradingStrategy(BaseStrategy):
 
         # 策略参数（默认值，子类可以覆盖）
         self.transaction_volume = 1    # 交易手数
-        self.order_timeout = 0.8       # 订单超时时间（秒）
+        self.order_timeout = 10       # 订单超时时间（秒）
         self.min_profit_points = 10    # 基本利润（最小盈利）
         self.slippage_points = 3 * 4   # 做一次差价就是4次下单，一次滑点设为3
         self.commission_point = 16     # 做一次差价开平的手续费成本,240，一跳15元
         self.klines_std_k = 3          # 计算标准差倍数，用于计算上下轨
         self.klines_windows = 20       # kline的计算窗口，请求时会请求双倍数据
         self.klines_duration = 1 * 60  # kline的请求周期
+        self.price_tick_min = 1        # 一跳的最小变动价格
 
         # 计算成本用
         self.current_spread_indicator = None
@@ -192,8 +204,23 @@ class SpreadTradingStrategy(BaseStrategy):
 
         # 注册订单异常等事件
         self.init_Event()
-
+        # 订阅配对的合约
         self.subscribe_spread()
+
+        # timer = threading.Timer(90, self.test_func)
+        # timer.start()
+
+    def test_func(self, event: Event):
+        print('---------------------进入测试任务-----------------------')
+        near_quote = self.spread_quotes[0]
+        far_quote = self.spread_quotes[1]
+        real_short_spread = near_quote.bid_price1 - far_quote.ask_price1
+        real_long_spread = near_quote.ask_price1 - far_quote.bid_price1
+        self._spread_open_short(near_quote, far_quote, real_short_spread)
+
+        lazy_time.sleep(10)
+        self._spread_close_short(near_quote, far_quote)
+        print('---------------------测试任务结束-----------------------')
 
     def subscribe_spread(self):
 
@@ -391,8 +418,10 @@ class SpreadTradingStrategy(BaseStrategy):
                 self._find_open_opportunity(real_short_spread, real_long_spread, near_quote, far_quote)
                 return
             else:
-                # 持仓检查平仓
-                self._find_close_opportunity(real_short_spread, real_long_spread, near_quote, far_quote, position)
+                # 如果都已成交
+                if position["near_status"] == Status.ALLTRADED and position["far_status"] == Status.ALLTRADED:
+                    # 持仓检查平仓
+                    self._find_close_opportunity(real_short_spread, real_long_spread, near_quote, far_quote, position)
 
 
         except Exception as e:
@@ -461,8 +490,6 @@ class SpreadTradingStrategy(BaseStrategy):
                 self._spread_close_short(near_quote, far_quote)
                 return
 
-            # 持有做空价差持仓，检查是否平仓或止损
-            # self._manage_short_spread_position(real_long_spread, position)
         elif position_type == LONG_SPREAD_TYPE:
             # 获取开仓时的价差
             open_spread = position["open_spread"]
@@ -480,8 +507,29 @@ class SpreadTradingStrategy(BaseStrategy):
                 self._spread_close_long(near_quote, far_quote)
                 return
 
-            # 持有多头价差持仓，检查是否平仓或止损
-            # self._manage_long_spread_position(real_short_spread, position)
+    def get_market_price(self, near_quote: Quote, far_quote: Quote, exchange: Exchange, position_type) -> tuple[
+        Literal[OrderType.LIMIT, OrderType.MARKET], float, float]:
+        # 两家上海的交易所不支持市价指令，使用涨跌停价回撤10%作为市价
+
+        if exchange in [Exchange.SHFE, Exchange.INE]:
+            order_type = OrderType.LIMIT
+            if position_type == SHORT_SPREAD_TYPE:
+                near_price = near_quote.lower_limit + (near_quote.pre_settlement - near_quote.lower_limit) * 0.1
+                far_price = far_quote.upper_limit - (far_quote.upper_limit - far_quote.pre_settlement) * 0.1
+                if self.price_tick_min == 10:
+                    near_price = round_to_10(near_price, 'round')
+                    far_price = round_to_10(far_price, 'round')
+            else:
+                near_price = near_quote.upper_limit - (near_quote.upper_limit - near_quote.pre_settlement) * 0.1
+                far_price = far_quote.lower_limit + (far_quote.pre_settlement - far_quote.lower_limit) * 0.1
+                if self.price_tick_min == 10:
+                    near_price = round_to_10(near_price, 'round')
+                    far_price = round_to_10(far_price, 'round')
+        else:
+            order_type = OrderType.MARKET
+            near_price = 0.0
+            far_price = 0.0
+        return order_type, near_price, far_price
 
     def _spread_close_short(self, near_quote: Quote, far_quote: Quote) -> None:
         """
@@ -497,7 +545,7 @@ class SpreadTradingStrategy(BaseStrategy):
             开仓时的价差
         """
         try:
-            order_type, near_price, far_price = get_market_price(
+            order_type, near_price, far_price = self.get_market_price(
                 near_quote, far_quote, self.exchange, LONG_SPREAD_TYPE)
 
             # 平近月空单
@@ -565,7 +613,7 @@ class SpreadTradingStrategy(BaseStrategy):
             开仓时的价差
         """
         try:
-            order_type, near_price, far_price = get_market_price(
+            order_type, near_price, far_price = self.get_market_price(
                 near_quote, far_quote, self.exchange, SHORT_SPREAD_TYPE)
 
             # 平近月空单
@@ -642,7 +690,7 @@ class SpreadTradingStrategy(BaseStrategy):
             开仓时的价差
         """
         try:
-            order_type, near_price, far_price = get_market_price(
+            order_type, near_price, far_price = self.get_market_price(
                 near_quote, far_quote, self.exchange, SHORT_SPREAD_TYPE)
 
             # 下单1：卖出近月合约（SHORT, OPEN）
@@ -699,12 +747,14 @@ class SpreadTradingStrategy(BaseStrategy):
                     "near_order_id": order_id_near,  # 近月订单ID
                     "near_price1": near_quote.bid_price1,  # 记录卖1价
                     "near_filled": False,  # 近月是否成交（初始为False）
+                    "near_status": Status.SUBMITTING,
                     "near_yd_volume": 0,  # 新开仓都是今仓，昨仓为0
                     "far_symbol": self.far_symbol,
                     "far_order_id": order_id_far,    # 远月订单ID
                     "far_price1": far_quote.ask_price1,  # 记录买1价
                     "far_filled": False,   # 远月是否成交（初始为False）
-                    "far_yd_volume": 0     # 新开仓都是今仓，昨仓为0
+                    "far_yd_volume": 0,     # 新开仓都是今仓，昨仓为0
+                    "far_status": Status.SUBMITTING,
                 }
                 self.gateway.write_log(f"做空价差开仓订单已发送: near_order:{order_id_near}, near_price1_bid: {near_quote.bid_price1}, "
                                        f"far_order:{order_id_far}, far_price1_ask: {far_quote.ask_price1} ")
@@ -745,7 +795,7 @@ class SpreadTradingStrategy(BaseStrategy):
         """
         try:
             # 获取合约信息
-            order_type, near_price, far_price = get_market_price(
+            order_type, near_price, far_price = self.get_market_price(
                 near_quote, far_quote, self.exchange, LONG_SPREAD_TYPE)
 
             # 下单1：买入近月合约（LONG, OPEN）
@@ -801,11 +851,13 @@ class SpreadTradingStrategy(BaseStrategy):
                     "near_order_id": order_id_near,  # 近月订单ID
                     "near_price1": near_quote.ask_price1,  # 记录买1价
                     "near_filled": False,  # 近月是否成交（初始为False）
+                    "near_status": Status.SUBMITTING,
                     "near_yd_volume": 0,  # 新开仓都是今仓，昨仓为0
                     "far_symbol": self.far_symbol,
                     "far_order_id": order_id_far,    # 远月订单ID
                     "far_price1": far_quote.bid_price1,  # 记录卖1价
                     "far_filled": False,   # 远月是否成交（初始为False）
+                    "far_status": Status.SUBMITTING,
                     "far_yd_volume": 0     # 新开仓都是今仓，昨仓为0
                 }
 
@@ -853,6 +905,7 @@ class SpreadTradingStrategy(BaseStrategy):
 
             # 检查是否是待成交订单
             if vt_orderid not in self.pending_orders:
+                # 这里查看一下订单，如果是REJ或者CAL打印出来
                 return
 
             order_info = self.pending_orders[vt_orderid]
@@ -868,9 +921,11 @@ class SpreadTradingStrategy(BaseStrategy):
                     if position.get("near_order_id") == vt_orderid:
                         # 近月订单成交，设置near_filled为True
                         position["near_filled"] = True
+                        position["near_status"] = status
                     elif position.get("far_order_id") == vt_orderid:
                         # 远月订单成交，设置far_filled为True
                         position["far_filled"] = True
+                        position["far_status"] = status
 
                 # 从待成交订单中移除
                 if vt_orderid in self.pending_orders:
@@ -885,6 +940,23 @@ class SpreadTradingStrategy(BaseStrategy):
             elif status in [Status.REJECTED, Status.CANCELLED]:
                 self.gateway.write_log(f"订单{status.value}: {vt_orderid}")
 
+                # 更新global_position中的成交标志
+                position = self.global_position.get("spread_position")
+                if position:
+                    if position.get("near_order_id") == vt_orderid:
+                        # 近月订单成交，设置near_filled为True
+                        position["near_status"] = status
+                    elif position.get("far_order_id") == vt_orderid:
+                        # 远月订单成交，设置far_filled为True
+                        position["far_status"] = status
+
+                    if (position["near_status"] in [Status.REJECTED, Status.CANCELLED]
+                        and position["far_status"] in [Status.REJECTED, Status.CANCELLED] ):
+                        # 都未成交则清空仓位
+                        self.gateway.write_log(f"清空仓位{position}")
+                        self.global_position["spread_position"] = {}
+
+
                 # 从待成交订单中移除
                 del self.pending_orders[vt_orderid]
                 # 也可能两个单都被拒或取消，所以这里不对单腿做处理
@@ -897,6 +969,7 @@ class SpreadTradingStrategy(BaseStrategy):
         """注册回调事件"""
         self.gateway.event_engine.register(EVENT_ERROR_ORDER, self.on_order_exception)
         self.gateway.event_engine.register(EVENT_UPDATE_QUOTE, self.on_subscribe_quote)
+        self.gateway.event_engine.register(EVENT_SEND_TEST, self.test_func)
 
     def on_order_exception(self, event: Event) -> None:
         error_event_data: dict = event.data
@@ -979,12 +1052,14 @@ class SpreadTradingStrategy(BaseStrategy):
                         "near_symbol": near_short_positions[0].symbol,
                         "near_order_id": "",
                         "near_filled": True,
+                        "near_status": Status.ALLTRADED,
                         "near_price1": near_short_positions[0].price,
                         "near_volume": near_short_positions[0].volume,
                         "near_yd_volume": near_short_positions[0].yd_volume,  # 昨仓数量
                         "far_symbol": far_long_positions[0].symbol,
                         "far_order_id": "",
                         "far_filled": True,
+                        "far_status": Status.ALLTRADED,
                         "far_price1": far_long_positions[0].price,
                         "far_volume": far_long_positions[0].volume,
                         "far_yd_volume": far_long_positions[0].yd_volume,  # 昨仓数量
@@ -1018,12 +1093,14 @@ class SpreadTradingStrategy(BaseStrategy):
                         "near_symbol": near_long_positions[0].symbol,
                         "near_order_id": "",
                         "near_filled": True,
+                        "near_status": Status.ALLTRADED,
                         "near_price1": near_long_positions[0].price,
                         "near_volume": near_long_positions[0].volume,
                         "near_yd_volume": near_long_positions[0].yd_volume,  # 昨仓数量
                         "far_symbol": far_short_positions[0].symbol,
                         "far_order_id": "",
                         "far_filled": True,
+                        "far_status": Status.ALLTRADED,
                         "far_price1": far_short_positions[0].price,
                         "far_volume": far_short_positions[0].volume,
                         "far_yd_volume": far_short_positions[0].yd_volume,  # 昨仓数量
@@ -1036,8 +1113,7 @@ class SpreadTradingStrategy(BaseStrategy):
                     self.gateway.write_log("持仓状态恢复完成，策略可以继续交易")
                 else:
                     self.gateway.write_log("未检测到价差持仓，策略准备就绪")
-            # 这个状态设置后，才可以交易
-            self.position_loaded = True
+            # 这个状态设置后，才可以交易，因为启动时会更新
             self.position_loaded = True
 
         except Exception as e:
@@ -1273,8 +1349,8 @@ class AgSpreadStrategy(SpreadTradingStrategy):
         self.commission_point = 16     # 做一次差价开平的手续费成本,240，一跳15元
         self.klines_std_k = 3          # 计算标准差倍数，用于计算上下轨
         self.klines_windows = 20       # kline的计算窗口，请求时会请求双倍数据
-        self.klines_duration = 15 * 60  # kline的请求周期
-
+        self.klines_duration = 15 * 60 # kline的请求周期
+        self.price_tick_min = 1        # 一跳的最小变动价格
 
 class NiSpreadStrategy(SpreadTradingStrategy):
     """
@@ -1289,10 +1365,11 @@ class NiSpreadStrategy(SpreadTradingStrategy):
         self.order_timeout = 0.8       # 订单超时时间（秒）
         self.min_profit_points = 10    # 基本利润（最小盈利）
         self.slippage_points = 3 * 4   # 做一次差价就是4次下单，一次滑点设为3
-        self.commission_point = 2     # 做一次差价开平的手续费成本,12，一跳10元
+        self.commission_point = 2      # 做一次差价开平的手续费成本,12，一跳10元
         self.klines_std_k = 3          # 计算标准差倍数，用于计算上下轨
         self.klines_windows = 20       # kline的计算窗口，请求时会请求双倍数据
-        self.klines_duration = 15 * 60  # kline的请求周期
+        self.klines_duration = 15 * 60 # kline的请求周期
+        self.price_tick_min = 10       # 一跳的最小变动价格
 
 class SnSpreadStrategy(SpreadTradingStrategy):
     """
@@ -1304,8 +1381,9 @@ class SnSpreadStrategy(SpreadTradingStrategy):
         self.transaction_volume = 1    # 交易手数
         self.order_timeout = 0.8       # 订单超时时间（秒）
         self.min_profit_points = 10    # 基本利润（最小盈利）
-        self.slippage_points = 50 * 4   # 做一次差价就是4次下单，一次滑点设为50
-        self.commission_point = 2     # 做一次差价开平的手续费成本,12，一跳10元
+        self.slippage_points = 50 * 4  # 做一次差价就是4次下单，一次滑点设为50
+        self.commission_point = 2      # 做一次差价开平的手续费成本,12，一跳10元
         self.klines_std_k = 3          # 计算标准差倍数，用于计算上下轨
         self.klines_windows = 20       # kline的计算窗口，请求时会请求双倍数据
-        self.klines_duration = 15 * 60  # kline的请求周期
+        self.klines_duration = 15 * 60 # kline的请求周期
+        self.price_tick_min = 10       # 一跳的最小变动价格
