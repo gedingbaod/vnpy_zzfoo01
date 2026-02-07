@@ -778,11 +778,6 @@ class CtpTdApi(TdApi):
         )
         self.gateway.on_order(order)
 
-        # zzfoo 通知TqSdkMdApi订单状态更新（用于套利策略）
-        vt_orderid: str = f"{self.gateway_name}.{orderid}"
-        if self.gateway.tq_md_api:
-            self.gateway.tq_md_api.on_order_status_update(vt_orderid, order.status)
-
         self.sysid_orderid_map[data["OrderSysID"]] = orderid
 
         # 特殊情况撤单（非交易时段、资金不足等）的日志输出

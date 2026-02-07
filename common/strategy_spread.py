@@ -11,7 +11,7 @@ from enum import Enum
 import time as lazy_time
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Dict, Literal
 
 import numpy as np
@@ -35,10 +35,16 @@ EVENT_UPDATE_QUOTE = "eTqsdkUpdateQuote"
 # 测试消息
 EVENT_SEND_TEST = 'eSendTestEvent'
 # 空差持仓
-SHORT_SPREAD_TYPE = "short_spread"
+SPREAD_POSITION_TYPE_SHORT = "spread_short"
 # 多差持仓
-LONG_SPREAD_TYPE = "long_spread"
+SPREAD_POSITION_TYPE_LONG = "spread_long"
+# 持仓类型
+SPREAD_POSITION_TYPE = "spread_type"
+# 跨期套利仓位
+SPREAD_POSITION = "spread_position"
 
+# 仓位状态
+POSITION_STATUS = "position_status"
 class PositionStatus(Enum):
     """
     仓位状态
@@ -81,7 +87,7 @@ class BaseStrategy(ABC):
         self.max_price_limit_ratio = 0.8  # 涨跌停限制比例
 
         # 持仓状态字典（跨期套利特有）
-        # 结构：{"spread_position": {...}}
+        # 结构：{SPREAD_POSITION: {...}}
         # 只会有一个价差持仓，通过 position_type 字段标记类型
         # 每个持仓包含以下字段：
         #   - position_type: 持仓类型（"short_spread"|"long_spread"）
@@ -110,7 +116,7 @@ class BaseStrategy(ABC):
         # 结构：{vt_order_id: status}
         # vt_order_id: 格式为 "gateway_name.orderid" 的订单唯一标识
         # status: 订单状态（Status枚举：SUBMITTING, NOTTRADED, PARTTRADED, ALLTRADED, CANCELLED, REJECTED）
-        self.order_status_map: dict = {}
+
 
         # 0是近期，1是远期
         self.spread_quotes: list[Quote] = []
@@ -126,7 +132,7 @@ class BaseStrategy(ABC):
     def process_order_event(self, event: Event) -> None:
         """处理委托事件"""
         order: OrderData = event.data
-        self.on_order_status_update(order.vt_orderid, order.status)
+        self.on_order_status_update(order)
 
     def start(self):
         """启动策略"""
@@ -151,7 +157,7 @@ class BaseStrategy(ABC):
         pass
 
     @abstractmethod
-    def on_order_status_update(self, vt_orderid: str, status: Status) -> None:
+    def on_order_status_update(self, order: OrderData) -> None:
         # 平仓函数
         pass
 
@@ -207,8 +213,19 @@ class SpreadTradingStrategy(BaseStrategy):
         # 订阅配对的合约
         self.subscribe_spread()
 
-        # timer = threading.Timer(90, self.test_func)
-        # timer.start()
+        # 初始化仓位管理
+        self.global_position[SPREAD_POSITION] = {}
+        self.spread_position = self.global_position[SPREAD_POSITION]
+        self.init_position()
+
+    def init_position(self):
+        self.spread_position[POSITION_STATUS] = PositionStatus.CLOSED
+
+    def init_Event(self) -> None:
+        """注册回调事件"""
+        self.gateway.event_engine.register(EVENT_ERROR_ORDER, self.on_order_exception)
+        self.gateway.event_engine.register(EVENT_UPDATE_QUOTE, self.on_subscribe_quote)
+        self.gateway.event_engine.register(EVENT_SEND_TEST, self.test_func)
 
     def test_func(self, event: Event):
         print('---------------------进入测试任务-----------------------')
@@ -410,18 +427,16 @@ class SpreadTradingStrategy(BaseStrategy):
                 return  # 有待成交订单，等待成交或超时
 
             # 获取当前持仓类型（"short_spread"|"long_spread"|None）
-            position = self.global_position.get("spread_position", None)
+            position = self.global_position.get(SPREAD_POSITION)
             # 如果已有持仓，不允许开新仓（因为transaction_volume=1，只允许1手持仓）
             # 如果未持仓才进入寻找开仓机会
-            if position is None:
-                # 空仓检查开仓
+            if self.spread_position[POSITION_STATUS] is PositionStatus.CLOSED:
+                # 空仓检查开仓机会
                 self._find_open_opportunity(real_short_spread, real_long_spread, near_quote, far_quote)
                 return
-            else:
-                # 如果都已成交
-                if position["near_status"] == Status.ALLTRADED and position["far_status"] == Status.ALLTRADED:
-                    # 持仓检查平仓
-                    self._find_close_opportunity(real_short_spread, real_long_spread, near_quote, far_quote, position)
+            elif self.spread_position[POSITION_STATUS] is PositionStatus.OPENED:
+                # 如果已全部成交，持仓检查平仓机会
+                self._find_close_opportunity(real_short_spread, real_long_spread, near_quote, far_quote)
 
 
         except Exception as e:
@@ -465,16 +480,16 @@ class SpreadTradingStrategy(BaseStrategy):
             self.gateway.write_log(f"做多价差开仓: {real_long_spread} < {lower_bound}")
             return
 
-    def _find_close_opportunity(self, real_short_spread, real_long_spread, near_quote, far_quote, position):
+    def _find_close_opportunity(self, real_short_spread, real_long_spread, near_quote, far_quote):
         # 获取持仓类型
-        position_type = position.get("position_type") if position else None
+        position_type = self.spread_position.get(SPREAD_POSITION_TYPE)
         # 获取技术指标
         (mean, std, upper_bound, lower_bound) = self.current_spread_indicator
 
         # 根据持仓状态执行相应操作
-        if position_type == SHORT_SPREAD_TYPE:
+        if position_type == SPREAD_POSITION_TYPE_SHORT:
             # # 持有做空价差持仓，检查是否平仓或止损
-            open_spread = position["open_spread"]
+            open_spread = self.spread_position["open_spread"]
             # 获取计算指标
             # 平仓：价差回归到中轨（<=35）
             # 做空价差盈利了，平仓获利
@@ -490,9 +505,9 @@ class SpreadTradingStrategy(BaseStrategy):
                 self._spread_close_short(near_quote, far_quote)
                 return
 
-        elif position_type == LONG_SPREAD_TYPE:
+        elif position_type == SPREAD_POSITION_TYPE_LONG:
             # 获取开仓时的价差
-            open_spread = position["open_spread"]
+            open_spread = self.spread_position["open_spread"]
             # 平仓：价差回归到中轨（>=35）
             # 做多价差盈利了，平仓获利
             if real_short_spread >= mean:
@@ -513,7 +528,7 @@ class SpreadTradingStrategy(BaseStrategy):
 
         if exchange in [Exchange.SHFE, Exchange.INE]:
             order_type = OrderType.LIMIT
-            if position_type == SHORT_SPREAD_TYPE:
+            if position_type == SPREAD_POSITION_TYPE_SHORT:
                 near_price = near_quote.lower_limit + (near_quote.pre_settlement - near_quote.lower_limit) * 0.1
                 far_price = far_quote.upper_limit - (far_quote.upper_limit - far_quote.pre_settlement) * 0.1
                 if self.price_tick_min == 10:
@@ -546,7 +561,7 @@ class SpreadTradingStrategy(BaseStrategy):
         """
         try:
             order_type, near_price, far_price = self.get_market_price(
-                near_quote, far_quote, self.exchange, LONG_SPREAD_TYPE)
+                near_quote, far_quote, self.exchange, SPREAD_POSITION_TYPE_LONG)
 
             # 平近月空单
             req_near = OrderRequest(
@@ -591,7 +606,8 @@ class SpreadTradingStrategy(BaseStrategy):
                     "create_time": create_time,
                     "pair_order_id": order_id_near  # 配对订单ID
                 }
-
+                # 更新持仓状态
+                self.spread_position[POSITION_STATUS] = PositionStatus.CLOSING
                 self.gateway.write_log(f"平空差订单已发送: {order_id_near}, {order_id_far}")
             else:
                 self.gateway.write_log("平空差订单发送失败")
@@ -614,7 +630,7 @@ class SpreadTradingStrategy(BaseStrategy):
         """
         try:
             order_type, near_price, far_price = self.get_market_price(
-                near_quote, far_quote, self.exchange, SHORT_SPREAD_TYPE)
+                near_quote, far_quote, self.exchange, SPREAD_POSITION_TYPE_SHORT)
 
             # 平近月空单
             req_near = OrderRequest(
@@ -659,7 +675,8 @@ class SpreadTradingStrategy(BaseStrategy):
                     "create_time": create_time,
                     "pair_order_id": order_id_near  # 配对订单ID
                 }
-
+                # 更新持仓状态
+                self.spread_position[POSITION_STATUS] = PositionStatus.CLOSING
                 self.gateway.write_log(f"平多差订单已发送: {order_id_near}, {order_id_far}")
             else:
                 self.gateway.write_log("平多差订单发送失败")
@@ -691,7 +708,7 @@ class SpreadTradingStrategy(BaseStrategy):
         """
         try:
             order_type, near_price, far_price = self.get_market_price(
-                near_quote, far_quote, self.exchange, SHORT_SPREAD_TYPE)
+                near_quote, far_quote, self.exchange, SPREAD_POSITION_TYPE_SHORT)
 
             # 下单1：卖出近月合约（SHORT, OPEN）
             req_near = OrderRequest(
@@ -739,8 +756,9 @@ class SpreadTradingStrategy(BaseStrategy):
 
                 # 暂时记录持仓（实际要等订单成交，所以near_filled和far_filled都为False）
                 # 这样在订单状态更新时可以更新这些标志
-                self.global_position["spread_position"] = {
-                    "position_type": SHORT_SPREAD_TYPE,  # 持仓类型
+                self.spread_position = {
+                    POSITION_STATUS: PositionStatus.OPENING,
+                    SPREAD_POSITION_TYPE: SPREAD_POSITION_TYPE_SHORT,  # 持仓类型
                     "open_spread": spread,        # 开仓时的价差
                     "open_time": datetime.now(),  # 开仓时间
                     "near_symbol": self.near_symbol,
@@ -765,8 +783,8 @@ class SpreadTradingStrategy(BaseStrategy):
                     self._cancel_order(order_id_near, False)
                 if order_id_far:
                     self._cancel_order(order_id_near, False)
-                if "spread_position" in self.global_position:
-                    del self.global_position["spread_position"]
+                if SPREAD_POSITION in self.global_position:
+                    del self.global_position[SPREAD_POSITION]
 
         except Exception as e:
             self.gateway.write_log(f"做空价差开仓异常: {str(e)}")
@@ -796,7 +814,7 @@ class SpreadTradingStrategy(BaseStrategy):
         try:
             # 获取合约信息
             order_type, near_price, far_price = self.get_market_price(
-                near_quote, far_quote, self.exchange, LONG_SPREAD_TYPE)
+                near_quote, far_quote, self.exchange, SPREAD_POSITION_TYPE_LONG)
 
             # 下单1：买入近月合约（LONG, OPEN）
             req_near = OrderRequest(
@@ -843,8 +861,9 @@ class SpreadTradingStrategy(BaseStrategy):
                 }
 
                 # 暂时记录持仓（实际要等订单成交，所以near_filled和far_filled都为False）
-                self.global_position["spread_position"] = {
-                    "position_type": LONG_SPREAD_TYPE,  # 持仓类型
+                self.spread_position = {
+                    POSITION_STATUS: PositionStatus.OPENING,
+                    SPREAD_POSITION_TYPE: SPREAD_POSITION_TYPE_LONG,  # 持仓类型
                     "open_spread": spread,        # 开仓时的价差
                     "open_time": datetime.now(),  # 开仓时间
                     "near_symbol": self.near_symbol,
@@ -870,18 +889,17 @@ class SpreadTradingStrategy(BaseStrategy):
                     self._cancel_order(order_id_near, False)
                 if order_id_far:
                     self._cancel_order(order_id_near, False)
-                if "spread_position" in self.global_position:
-                    del self.global_position["spread_position"]
+                if SPREAD_POSITION in self.global_position:
+                    del self.global_position[SPREAD_POSITION]
 
         except Exception as e:
             self.gateway.write_log(f"做多价差开仓异常: {str(e)}")
 
-    def on_order_status_update(self, vt_orderid: str, status: Status) -> None:
+    def on_order_status_update(self, order: OrderData) -> None:
         """
         订单状态更新回调（从TtsTdApi的onRtnOrder调用）
 
         逻辑：
-        1. 更新订单状态映射（order_status_map）
         2. 检查是否是待成交订单，不是则返回
         3. 根据订单状态执行相应操作：
            - ALLTRADED（全部成交）：
@@ -900,8 +918,12 @@ class SpreadTradingStrategy(BaseStrategy):
             订单状态（SUBMITTING, NOTTRADED, PARTTRADED, ALLTRADED, CANCELLED, REJECTED）
         """
         try:
-            # 更新订单状态映射
-            self.order_status_map[vt_orderid] = status
+            vt_orderid = order.vt_orderid
+            status = order.status
+            # 检查持仓状态
+            if (self.spread_position[POSITION_STATUS] == PositionStatus.OPENED
+                    or self.spread_position[POSITION_STATUS] == PositionStatus.CLOSED):
+                return
 
             # 检查是否是待成交订单
             if vt_orderid not in self.pending_orders:
@@ -916,7 +938,7 @@ class SpreadTradingStrategy(BaseStrategy):
                 self.gateway.write_log(f"订单完全成交: {vt_orderid}")
 
                 # 更新global_position中的成交标志
-                position = self.global_position.get("spread_position")
+                position = self.spread_position
                 if position:
                     if position.get("near_order_id") == vt_orderid:
                         # 近月订单成交，设置near_filled为True
@@ -932,16 +954,21 @@ class SpreadTradingStrategy(BaseStrategy):
                     del self.pending_orders[vt_orderid]
 
                 # 检查配对订单是否也成交
-                if pair_order_id and pair_order_id not in self.pending_orders:
-                    # 两条腿都成交，开仓完成
+                if position["near_status"] == Status.ALLTRADED and position["far_status"] == Status.ALLTRADED:
+                    # 两条腿都成交，开仓或平仓完成
                     self.gateway.write_log(f"价差订单对成交完成")
+                    # 更新持仓状态
+                    if self.spread_position[POSITION_STATUS] == PositionStatus.OPENING:
+                        self.spread_position[POSITION_STATUS] = PositionStatus.OPENED
+                    if self.spread_position[POSITION_STATUS] == PositionStatus.CLOSING:
+                        self.spread_position[POSITION_STATUS] = PositionStatus.CLOSED
 
             # 情况2：订单被拒绝或撤销
             elif status in [Status.REJECTED, Status.CANCELLED]:
                 self.gateway.write_log(f"订单{status.value}: {vt_orderid}")
 
                 # 更新global_position中的成交标志
-                position = self.global_position.get("spread_position")
+                position = self.global_position.get(SPREAD_POSITION)
                 if position:
                     if position.get("near_order_id") == vt_orderid:
                         # 近月订单成交，设置near_filled为True
@@ -954,8 +981,7 @@ class SpreadTradingStrategy(BaseStrategy):
                         and position["far_status"] in [Status.REJECTED, Status.CANCELLED] ):
                         # 都未成交则清空仓位
                         self.gateway.write_log(f"清空仓位{position}")
-                        self.global_position["spread_position"] = {}
-
+                        self.global_position[SPREAD_POSITION] = {}
 
                 # 从待成交订单中移除
                 del self.pending_orders[vt_orderid]
@@ -965,11 +991,7 @@ class SpreadTradingStrategy(BaseStrategy):
         except Exception as e:
             self.gateway.write_log(f"订单状态更新异常: {str(e)}")
 
-    def init_Event(self) -> None:
-        """注册回调事件"""
-        self.gateway.event_engine.register(EVENT_ERROR_ORDER, self.on_order_exception)
-        self.gateway.event_engine.register(EVENT_UPDATE_QUOTE, self.on_subscribe_quote)
-        self.gateway.event_engine.register(EVENT_SEND_TEST, self.test_func)
+
 
     def on_order_exception(self, event: Event) -> None:
         error_event_data: dict = event.data
@@ -1030,7 +1052,7 @@ class SpreadTradingStrategy(BaseStrategy):
                 len(near_short_positions) == self.transaction_volume and
                 len(far_long_positions) == self.transaction_volume):
 
-                existing_position = self.global_position.get("spread_position")
+                existing_position = self.global_position.get(SPREAD_POSITION)
 
                 if not self.position_loaded:
                     self.gateway.write_log("检测到做空价差持仓，已恢复策略状态")
@@ -1045,8 +1067,8 @@ class SpreadTradingStrategy(BaseStrategy):
                     })
                 else:
                     # 首次加载，创建完整持仓信息
-                    self.global_position["spread_position"] = {
-                        "position_type": SHORT_SPREAD_TYPE,  # 持仓类型
+                    self.global_position[SPREAD_POSITION] = {
+                        SPREAD_POSITION_TYPE: SPREAD_POSITION_TYPE_SHORT,  # 持仓类型
                         "open_time": datetime.now(),  # 使用当前时间作为开仓时间
                         "open_spread": near_short_positions[0].price - far_long_positions[0].price,  # 原始开仓价是近期买1-远期卖1 或者近期卖1-远期买1，这里只能用两个实际成交价相减
                         "near_symbol": near_short_positions[0].symbol,
@@ -1071,7 +1093,7 @@ class SpreadTradingStrategy(BaseStrategy):
                   len(near_long_positions) == self.transaction_volume and
                   len(far_short_positions) == self.transaction_volume):
 
-                existing_position = self.global_position.get("spread_position")
+                existing_position = self.global_position.get(SPREAD_POSITION)
 
                 if not self.position_loaded:
                     self.gateway.write_log("检测到做多价差持仓，已恢复策略状态")
@@ -1086,8 +1108,8 @@ class SpreadTradingStrategy(BaseStrategy):
                     })
                 else:
                     # 首次加载，创建完整持仓信息
-                    self.global_position["spread_position"] = {
-                        "position_type": LONG_SPREAD_TYPE,  # 持仓类型
+                    self.global_position[SPREAD_POSITION] = {
+                        SPREAD_POSITION_TYPE: SPREAD_POSITION_TYPE_LONG,  # 持仓类型
                         "open_time": datetime.now(),  # 使用当前时间作为开仓时间
                         "open_spread": near_long_positions[0].price - far_short_positions[0].price,  # 无法获取原始开仓价差，设为0
                         "near_symbol": near_long_positions[0].symbol,
@@ -1179,11 +1201,11 @@ class SpreadTradingStrategy(BaseStrategy):
     def _handle_partial_fill(self) -> None:
         """处理单腿成交情况"""
         try:
-            position = self.global_position.get("spread_position")
+            position = self.global_position.get(SPREAD_POSITION)
             if not position:
                 return
 
-            position_type = position.get("position_type")
+            position_type = position.get(SPREAD_POSITION_TYPE)
             if not position_type:
                 return
 
@@ -1212,14 +1234,14 @@ class SpreadTradingStrategy(BaseStrategy):
             要平仓的腿（"near" 或 "far"）
         """
         try:
-            if position_type == SHORT_SPREAD_TYPE:
+            if position_type == SPREAD_POSITION_TYPE_SHORT:
                 if leg == "near":
                     # 平near空头
                     self._send_emergency_close_order(self.near_symbol, Direction.LONG)
                 else:
                     # 平far多头
                     self._send_emergency_close_order(self.far_symbol, Direction.SHORT)
-            elif position_type == LONG_SPREAD_TYPE:
+            elif position_type == SPREAD_POSITION_TYPE_LONG:
                 if leg == "near":
                     # 平near多头
                     self._send_emergency_close_order(self.near_symbol, Direction.SHORT)
@@ -1228,8 +1250,8 @@ class SpreadTradingStrategy(BaseStrategy):
                     self._send_emergency_close_order(self.far_symbol, Direction.LONG)
 
             # 清空持仓
-            if "spread_position" in self.global_position:
-                del self.global_position["spread_position"]
+            if SPREAD_POSITION in self.global_position:
+                del self.global_position[SPREAD_POSITION]
 
         except Exception as e:
             self.gateway.write_log(f"紧急平仓异常: {str(e)}")
@@ -1246,7 +1268,7 @@ class SpreadTradingStrategy(BaseStrategy):
             方向
         """
         # order_type, near_price, far_price = get_market_price(
-        #     near_quote, far_quote, self.exchange, LONG_SPREAD_TYPE)
+        #     near_quote, far_quote, self.exchange, SPREAD_POSITION_TYPE_LONG)
         if symbol == self.near_symbol:
             close_quote = self.spread_quotes[0]
         elif symbol == self.far_symbol:
@@ -1294,7 +1316,7 @@ class SpreadTradingStrategy(BaseStrategy):
         平仓价差持仓
 
         逻辑：
-        1. 获取当前持仓（global_position["spread_position"]）
+        1. 获取当前持仓（global_position[SPREAD_POSITION]）
         2. 根据持仓的 position_type 确定平仓方向：
            - 做空价差持仓：买入近月，卖出远月（LONG, SHORT）
            - 做多价差持仓：卖出近月，买入远月（SHORT, LONG）
@@ -1308,26 +1330,26 @@ class SpreadTradingStrategy(BaseStrategy):
         """
         try:
             # 获取当前持仓
-            position = self.global_position.get("spread_position")
+            position = self.global_position.get(SPREAD_POSITION)
             if not position:
                 return  # 无持仓
 
-            position_type = position.get("position_type")
+            position_type = position.get(SPREAD_POSITION_TYPE)
             if not position_type:
                 return
 
             near_quote = self.spread_quotes[0]
             far_quote = self.spread_quotes[1]
 
-            if position_type == SHORT_SPREAD_TYPE:
+            if position_type == SPREAD_POSITION_TYPE_SHORT:
                 # 平做空价差：买入近月，卖出远月
                 self._spread_close_short(near_quote, far_quote)
-            elif position_type == LONG_SPREAD_TYPE:
+            elif position_type == SPREAD_POSITION_TYPE_LONG:
                 # 平做多价差：卖出近月，买入远月
                 self._spread_close_long(near_quote, far_quote)
 
             # 清空持仓
-            del self.global_position["spread_position"]
+            del self.global_position[SPREAD_POSITION]
             self.gateway.write_log("价差持仓已平仓")
 
         except Exception as e:
@@ -1387,3 +1409,6 @@ class SnSpreadStrategy(SpreadTradingStrategy):
         self.klines_windows = 20       # kline的计算窗口，请求时会请求双倍数据
         self.klines_duration = 15 * 60 # kline的请求周期
         self.price_tick_min = 10       # 一跳的最小变动价格
+
+if __name__ == '__main__':
+    print(PositionStatus.CLOSED.value)
