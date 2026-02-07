@@ -6,7 +6,7 @@ from tqsdk.objs import Quote
 
 from common.account.tq_account import tq_auth
 from common.tq_contracts_dict import TqContractsDict
-from common.vnpy_time import get_now, datetime_format
+from common.vnpy_time import get_now, datetime_format, get_now_str
 
 from vnpy.trader.object import TickData, ContractData
 from vnpy.trader.gateway import BaseGateway
@@ -243,7 +243,7 @@ class TqsdkSupport:
             while self._running:
                 # 阻塞等待更新
                 self.api.wait_update()
-                local_time = get_now()
+                local_time = get_now_str()
                 for symbol, quote in self.subscribed.items():
                     # 示例：移除值为偶数的键值对
                     # print(f"{local_time} symbol: {symbol} quote: {quote}")
@@ -267,7 +267,7 @@ class TqsdkSupport:
         #             await self._async_wait_update(timeout=1.0)
         #
         #             # 获取当前时间
-        #             local_time = self._get_now()
+        #             local_time = self._get_now_str()
         #
         #             # 并发处理所有订阅的合约
         #             tasks = []
@@ -318,7 +318,7 @@ class TqsdkSupport:
     #         while self._running:
     #             # 阻塞等待更新
     #             self.api.wait_update()
-    #             local_time = get_now()
+    #             local_time = get_now_str()
     #             for symbol, quote in self.subscribed.items():
     #                 # 示例：移除值为偶数的键值对
     #                 # print(f"{local_time} symbol: {symbol} quote: {quote}")
@@ -440,7 +440,7 @@ class TqsdkSupport:
 #                     # 异步等待API更新
 #                     await self._async_wait_update()
 #
-#                     local_time = self._get_now()
+#                     local_time = self._get_now_str()
 #
 #                     # 异步处理所有订阅的合约
 #                     tasks = []
@@ -593,7 +593,7 @@ class TqsdkSupport:
 #                     await self._async_wait_update(timeout=1.0)
 #
 #                     # 获取当前时间
-#                     local_time = self._get_now()
+#                     local_time = self._get_now_str()
 #
 #                     # 并发处理所有订阅的合约
 #                     tasks = []

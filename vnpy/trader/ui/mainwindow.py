@@ -160,9 +160,15 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         self.add_action(
             help_menu,
-            _("发送测试信号"),
+            _("发送开仓测试信号"),
             get_icon_path(__file__, "email.ico"),
-            self.send_test_event
+            self.send_test_event_open
+        )
+        self.add_action(
+            help_menu,
+            _("发送平仓测试信号"),
+            get_icon_path(__file__, "email.ico"),
+            self.send_test_event_close
         )
         self.add_action(
             help_menu,
@@ -337,9 +343,16 @@ class MainWindow(QtWidgets.QMainWindow):
         dialog: GlobalDialog = GlobalDialog()
         dialog.exec()
 
-    def send_test_event(self) -> None:
+    def send_test_event_open(self) -> None:
         """
         发送测试信号
         """
-        event: Event = Event('eSendTestEvent')
+        event: Event = Event('eSendTestEventOpen')
+        self.event_engine.put(event)
+
+    def send_test_event_close(self) -> None:
+        """
+        发送测试信号
+        """
+        event: Event = Event('eSendTestEventClose')
         self.event_engine.put(event)

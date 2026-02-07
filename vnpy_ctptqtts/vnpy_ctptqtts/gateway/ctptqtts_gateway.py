@@ -167,8 +167,17 @@ class CtptqttsGateway(BaseGatewayTq):
         # self.default_setting.setdefault("mdapi_version", CtpMdApi.md_api.getApiVersion())
 
         self.count: int = 0
+        # 判断初始化时合约是否已经加载完成，
+        # 因为TTS加载了太多合约，启动非常慢，
+        # 所以通过指定交易所的方式加载，每个交易所加载一次，
+        # 这样就破坏了，原有的只加载一次的逻辑
+        # 所以使用集合来判断是否已经完全加载
+        self.loaded_set: set[str] = set()
 
     def connect(self, setting: dict) -> None:
+        if self.td_api.login_status:
+            self.write_log("CTPTQTTS已连接，请勿重复连接")
+            return
         """连接交易接口"""
         userid: str = setting["用户名"]
         password: str = setting["密码"]
@@ -582,8 +591,22 @@ class CtpTdApi(TdApi):
 
         # 由于流控，单次查询可能失败，通过while循环持续尝试，直到成功发出请求
         while True:
-            self.reqid += 1
-            n: int = self.reqQryInstrument({}, self.reqid)
+            # self.reqid += 1
+            # req = {
+            #     "ExchangeID": "SHFE",  # 指定交易所，如果不指定则查询所有
+            #     "InstrumentID": ""  # 指定合约代码，为空则查询该交易所所有
+            # }
+            # n: int = self.reqQryInstrument(req, self.reqid)
+
+            # 为每个交易所发送查询请求
+            for exchange_id in EXCHANGE_CTP2VT.keys():
+                req = {
+                    "ExchangeID": exchange_id,
+                    "InstrumentID": ""  # 查询该交易所所有合约
+                }
+                self.reqid += 1 # 获取请求ID
+                n: int = self.reqQryInstrument(req, self.reqid)
+                print(f"已发送 {exchange_id} 交易所合约查询请求，请求ID: {self.reqid}")
 
             if not n:
                 break
@@ -682,6 +705,8 @@ class CtpTdApi(TdApi):
 
     def onRspQryInstrument(self, data: dict, error: dict, reqid: int, last: bool) -> None:
         """合约查询回报"""
+        if data["ExchangeID"] not in EXCHANGE_CTP2VT:
+            return
         product: Product | None = PRODUCT_CTP2VT.get(data["ProductClass"], None)
         if product:
             contract: ContractData = ContractData(
@@ -695,7 +720,7 @@ class CtpTdApi(TdApi):
                 max_volume=data["MaxLimitOrderVolume"],
                 gateway_name=self.gateway_name
             )
-
+            self.gateway.loaded_set.add(contract.exchange.value)
             # 期权相关
             if contract.product == Product.OPTION:
                 # 移除郑商所期权产品名称带有的C/P后缀
@@ -716,6 +741,9 @@ class CtpTdApi(TdApi):
             symbol_contract_map[contract.symbol] = contract
 
         if last:
+            if not self.gateway.loaded_set.issuperset(set(EXCHANGE_CTP2VT.keys())):
+                # 如果还没有加载完，就返回，直到所有交易所都加载完成
+                return
             self.contract_inited = True
             self.gateway.write_log("合约信息查询成功")
 
@@ -723,6 +751,7 @@ class CtpTdApi(TdApi):
             with self.gateway.update_map_condition:
                 # 更新合约到TQSDK
                 self.gateway.symbol_contract_map_tqsdk.update(symbol_contract_map)
+                # 通知connect函数里的信号量，可以开始继续连接
                 self.gateway.update_map_condition.notify()
 
             for data in self.order_data:

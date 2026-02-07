@@ -8,7 +8,7 @@ from typing import Any, Union
 # from vnpy.trader.gateway import BaseGateway
 from common.gateway_tq import BaseGatewayTq, MARKET_SOURCE_TQSDK, MARKET_SOURCE_TTS
 from common.strategy_spread import EVENT_ERROR_ORDER
-from common.vnpy_time import get_now
+from common.vnpy_time import get_now, get_now_str
 from common.tqsdk_gateway import TqSdkMdApi  # 从common导入TQSDK行情API
 from vnpy.event.engine import EventEngine
 from pathlib import Path
@@ -551,7 +551,7 @@ class TtsTdApi(TdApi):
 
     def onRspOrderInsert(self, data: dict, error: dict, reqid: int, last: bool) -> None:
         """委托下单失败回报"""
-        time_get = get_now()
+        time_get = get_now_str()
         self.gateway.write_log(f"收到CTP回调时间:{time_get}")
 
         order_ref: str = data["OrderRef"]
@@ -600,7 +600,7 @@ class TtsTdApi(TdApi):
         """持仓查询回报"""
         if not data:
             return
-        time_recorder = get_now()
+        time_recorder = get_now_str()
         self.gateway.write_debug_log(f'获取仓位数据的时间：{time_recorder} reqid：{reqid}  接收数据：{data}')
         # 必须已经收到了合约信息后才能处理
         symbol: str = data["InstrumentID"]
@@ -648,7 +648,7 @@ class TtsTdApi(TdApi):
             else:
                 position.frozen += data["LongFrozen"]
 
-            time_order = get_now()
+            time_order = get_now_str()
             self.gateway.write_debug_log(f'获取到订单的时间：{time_order} 仓位数据：{position}')
         if last:
             for position in self.positions.values():
@@ -761,7 +761,7 @@ class TtsTdApi(TdApi):
         order_ref: str = data["OrderRef"]
         orderid: str = f"{frontid}_{sessionid}_{order_ref}"
 
-        # time_order = get_now()
+        # time_order = get_now_str()
         # self.gateway.write_debug_log(f'获取到订单的时间：{time_order} 订单ID：{orderid} 订单状态：{STATUS_TTS2VT[data["OrderStatus"]]} 接收数据：{data}')
 
         timestamp: str = f"{data['InsertDate']} {data['InsertTime']}"
@@ -782,7 +782,7 @@ class TtsTdApi(TdApi):
             datetime=dt,
             gateway_name=self.gateway_name
         )
-        # time_order = get_now()
+        # time_order = get_now_str()
         # self.gateway.write_debug_log(f'整理订单时间：{time_order}，订单信息：{order}')
         # 将订单作为EVENT_ORDER事件发送
         self.gateway.on_order(order)
@@ -937,7 +937,7 @@ class TtsTdApi(TdApi):
             tts_req["VolumeCondition"] = THOST_FTDC_VC_CV
 
         self.reqid += 1
-        time_send = get_now()
+        time_send = get_now_str()
         self.gateway.write_log(f"CTP接口下单时间:{time_send} ")
         self.reqOrderInsert(tts_req, self.reqid)
 

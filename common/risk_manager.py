@@ -111,7 +111,7 @@ class RiskManager:
         while self.active:
             try:
                 # 每3分钟检查一次
-                self.interrupt_event.wait(10)
+                self.interrupt_event.wait(180)
 
                 # 临时使用近月合约，后期可以再优化
                 rt1 = self._check_closing_time()
