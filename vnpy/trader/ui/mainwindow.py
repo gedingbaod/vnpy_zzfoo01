@@ -178,6 +178,12 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         self.add_action(
             help_menu,
+            _("发送测试线程启动信号"),
+            get_icon_path(__file__, "email.ico"),
+            self.send_test_event_start
+        )
+        self.add_action(
+            help_menu,
             _("测试邮件"),
             get_icon_path(__file__, "email.ico"),
             self.send_test_email
@@ -368,4 +374,11 @@ class MainWindow(QtWidgets.QMainWindow):
         发送测试信号
         """
         event: Event = Event('eSendTestEventTimeout')
+        self.event_engine.put(event)
+
+    def send_test_event_start(self) -> None:
+        """
+        发送测试信号
+        """
+        event: Event = Event('eSendTestEventStart')
         self.event_engine.put(event)
