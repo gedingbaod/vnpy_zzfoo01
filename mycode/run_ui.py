@@ -54,6 +54,7 @@ else:
 # from vnpy_webtrader import WebTraderApp
 # from vnpy_portfoliomanager import PortfolioManagerApp
 
+main_engine = None
 
 def main():
     """"""
@@ -61,6 +62,7 @@ def main():
 
     event_engine = EventEngine()
 
+    global main_engine
     main_engine = MainEngine(event_engine)
 
     # 这六个只能留一个，不然会报错
