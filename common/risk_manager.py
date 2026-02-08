@@ -127,6 +127,8 @@ class RiskManager:
                     self.strategy.gateway.write_log("收盘前强制平仓")
                     self.strategy.close_position(force=True)
 
+                self.print_history_position()
+
             except Exception as e:
                 if self.active:
                     self.strategy.gateway.write_log(f"风险检查异常: {str(e)}")
@@ -225,6 +227,82 @@ class RiskManager:
         except Exception as e:
             self.strategy.gateway.write_log(f"检查涨跌停异常: {str(e)}")
             return False
+
+    def print_history_position(self) -> None:
+        """
+        打印历史持仓记录
+
+        将self.strategy.history_position的内容格式化输出到日志
+        """
+        history = self.strategy.history_position
+
+        if not history:
+            self.strategy.gateway.write_log("历史持仓记录为空")
+            return
+
+        # 构建输出字符串
+        output_lines: list[str] = []
+        output_lines.append(f"========== 历史持仓记录 (共 {len(history)} 条) ==========")
+
+        for idx, position in enumerate(history, 1):
+            output_lines.append(f"---------- 记录 {idx} ----------")
+
+            # 打印关键字段
+            status = position.get("position_status", "N/A")
+            output_lines.append(f"  状态: {status}")
+
+            # 开仓相关
+            if position.get("open_start_time"):
+                output_lines.append(f"  开仓开始时间: {position.get('open_start_time')}")
+            if position.get("open_finish_time"):
+                output_lines.append(f"  开仓完成时间: {position.get('open_finish_time')}")
+
+            # 平仓相关
+            if position.get("close_start_time"):
+                output_lines.append(f"  平仓开始时间: {position.get('close_start_time')}")
+            if position.get("close_finish_time"):
+                output_lines.append(f"  平仓完成时间: {position.get('close_finish_time')}")
+
+            # 异常相关
+            if position.get("exception_time"):
+                output_lines.append(f"  异常时间: {position.get('exception_time')}")
+
+            # 订单ID
+            if position.get("near_open_order_id"):
+                output_lines.append(f"  近月开仓订单ID: {position.get('near_open_order_id')}")
+            if position.get("far_open_order_id"):
+                output_lines.append(f"  远月开仓订单ID: {position.get('far_open_order_id')}")
+            if position.get("near_close_order_id"):
+                output_lines.append(f"  近月平仓订单ID: {position.get('near_close_order_id')}")
+            if position.get("far_close_order_id"):
+                output_lines.append(f"  远月平仓订单ID: {position.get('far_close_order_id')}")
+
+            # 订单状态
+            if position.get("near_open_status"):
+                output_lines.append(f"  近月开仓状态: {position.get('near_open_status')}")
+            if position.get("far_open_status"):
+                output_lines.append(f"  远月开仓状态: {position.get('far_open_status')}")
+            if position.get("near_close_status"):
+                output_lines.append(f"  近月平仓状态: {position.get('near_close_status')}")
+            if position.get("far_close_status"):
+                output_lines.append(f"  远月平仓状态: {position.get('far_close_status')}")
+
+            # 合约信息
+            if position.get("near_symbol"):
+                output_lines.append(f"  近月合约: {position.get('near_symbol')}")
+            if position.get("far_symbol"):
+                output_lines.append(f"  远月合约: {position.get('far_symbol')}")
+
+            # 价差信息
+            if position.get("open_spread") is not None:
+                output_lines.append(f"  开仓价差: {position.get('open_spread')}")
+            if position.get("close_spread") is not None:
+                output_lines.append(f"  平仓价差: {position.get('close_spread')}")
+
+        output_lines.append("========== 历史持仓记录打印完成 ==========")
+
+        # 一次性输出
+        self.strategy.gateway.write_log("\n".join(output_lines))
 
 if __name__ == "__main__":
     symbol_short = "ni"

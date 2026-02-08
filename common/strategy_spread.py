@@ -37,6 +37,7 @@ EVENT_UPDATE_QUOTE = "eTqsdkUpdateQuote"
 # 测试消息
 EVENT_SEND_TEST_OPEN = 'eSendTestEventOpen'
 EVENT_SEND_TEST_CLOSE = 'eSendTestEventClose'
+EVENT_SEND_TEST_TIMEOUT = 'eSendTestEventTimeout'
 # 空差持仓
 SPREAD_POSITION_TYPE_SHORT = "spread_short"
 # 多差持仓
@@ -95,10 +96,6 @@ class BaseStrategy(ABC):
         # 只会有一个价差持仓，通过 position_type 字段标记类型
         # 每个持仓包含以下字段：
         #   - position_type: 持仓类型（"short_spread"|"long_spread"）
-        #   - open_time: 开仓时间
-        #   - open_spread: 开仓时的价差
-        #   - near_order_id: 近月合约订单ID
-        #   - far_order_id: 远月合约订单ID
         #   - near_yd_volume: 近月合约昨仓数量（用于判断平今/平昨）
         #   - far_yd_volume: 远月合约昨仓数量（用于判断平今/平昨）
         self.global_position: dict[str, dict] = defaultdict(dict)
@@ -114,12 +111,6 @@ class BaseStrategy(ABC):
         #   - create_time: 订单创建时间戳
         #   - pair_order_id: 配对订单ID（另一条腿的订单ID，可选）
         self.pending_orders: dict = {}
-
-        # 订单状态映射字典
-        # 结构：{vt_order_id: status}
-        # vt_order_id: 格式为 "gateway_name.orderid" 的订单唯一标识
-        # status: 订单状态（Status枚举：SUBMITTING, NOTTRADED, PARTTRADED, ALLTRADED, CANCELLED, REJECTED）
-
 
         # 0是近期，1是远期
         self.spread_quotes: list[Quote] = []
@@ -198,7 +189,7 @@ class SpreadTradingStrategy(BaseStrategy):
 
         # 策略参数（默认值，子类可以覆盖）
         self.transaction_volume = 1    # 交易手数
-        self.order_timeout = 10       # 订单超时时间（秒）
+        self.order_timeout = 3       # 订单超时时间（秒）
         self.min_profit_points = 10    # 基本利润（最小盈利）
         self.slippage_points = 3 * 4   # 做一次差价就是4次下单，一次滑点设为3
         self.commission_point = 16     # 做一次差价开平的手续费成本,240，一跳15元
@@ -234,6 +225,7 @@ class SpreadTradingStrategy(BaseStrategy):
         self.gateway.event_engine.register(EVENT_UPDATE_QUOTE, self.on_subscribe_quote)
         self.gateway.event_engine.register(EVENT_SEND_TEST_OPEN, self.test_func_open)
         self.gateway.event_engine.register(EVENT_SEND_TEST_CLOSE, self.test_func_close)
+        self.gateway.event_engine.register(EVENT_SEND_TEST_TIMEOUT, self.test_func_timeout)
 
     def test_func_open(self, event: Event):
         self.gateway.write_log('---------------------进入开仓测试任务-----------------------')
@@ -242,7 +234,7 @@ class SpreadTradingStrategy(BaseStrategy):
         real_short_spread = near_quote.bid_price1 - far_quote.ask_price1
         real_long_spread = near_quote.ask_price1 - far_quote.bid_price1
         # self._spread_open_short(near_quote, far_quote, real_short_spread)
-        self._spread_open_long(near_quote, far_quote, real_long_spread)
+        self._spread_open_long(near_quote, far_quote, real_long_spread, specified_near_price=0.0)
         self.gateway.write_log('---------------------开仓测试任务结束-----------------------')
 
     def test_func_close(self, event: Event):
@@ -253,6 +245,10 @@ class SpreadTradingStrategy(BaseStrategy):
         self._spread_close_long(near_quote, far_quote)
         self.gateway.write_log('---------------------平仓测试任务结束-----------------------')
 
+    def test_func_timeout(self, event: Event):
+        self.gateway.write_log('---------------------进入超时测试任务-----------------------')
+        self._check_pending_orders_timeout()
+        self.gateway.write_log('---------------------超时测试任务结束-----------------------')
 
     def subscribe_spread(self):
 
@@ -822,7 +818,7 @@ class SpreadTradingStrategy(BaseStrategy):
         except Exception as e:
             self.gateway.write_log(f"做空价差开仓异常: {str(e)}")
 
-    def _spread_open_long(self, near_quote: Quote, far_quote: Quote, spread: float) -> None:
+    def _spread_open_long(self, near_quote: Quote, far_quote: Quote, spread: float, specified_near_price:float = None) -> None:
         """
         开做多价差（买近卖远）
 
@@ -848,6 +844,10 @@ class SpreadTradingStrategy(BaseStrategy):
             # 获取合约信息
             order_type, near_price, far_price = self.get_market_price(
                 near_quote, far_quote, self.exchange, SPREAD_POSITION_TYPE_LONG)
+
+            # 用于界面测试，指定价格
+            if specified_near_price:
+                near_price = specified_near_price
 
             # 下单1：买入近月合约（LONG, OPEN）
             req_near = OrderRequest(
@@ -1236,6 +1236,7 @@ class SpreadTradingStrategy(BaseStrategy):
             if timeout_orders:
                 # 检查是否有单腿成交
                 self._handle_partial_fill()
+            # else:
 
         except Exception as e:
             self.gateway.write_log(f"检查订单超时异常: {str(e)}")
@@ -1439,7 +1440,7 @@ class AgSpreadStrategy(SpreadTradingStrategy):
         # 设置白银特定的策略参数
         self.transaction_volume = 1    # 交易手数
         self.order_timeout = 0.8       # 订单超时时间（秒）
-        self.min_profit_points = 10    # 基本利润（最小盈利）
+        self.min_profit_points = 3    # 基本利润（最小盈利）
         self.slippage_points = 3 * 4   # 做一次差价就是4次下单，一次滑点设为3
         self.commission_point = 16     # 做一次差价开平的手续费成本,240，一跳15元
         self.klines_std_k = 3          # 计算标准差倍数，用于计算上下轨
@@ -1458,7 +1459,7 @@ class NiSpreadStrategy(SpreadTradingStrategy):
         # 设置白银特定的策略参数
         self.transaction_volume = 1    # 交易手数
         self.order_timeout = 0.8       # 订单超时时间（秒）
-        self.min_profit_points = 10    # 基本利润（最小盈利）
+        self.min_profit_points = 3    # 基本利润（最小盈利）
         self.slippage_points = 3 * 4   # 做一次差价就是4次下单，一次滑点设为3
         self.commission_point = 2      # 做一次差价开平的手续费成本,12，一跳10元
         self.klines_std_k = 3          # 计算标准差倍数，用于计算上下轨
@@ -1475,7 +1476,7 @@ class SnSpreadStrategy(SpreadTradingStrategy):
         # 设置白银特定的策略参数
         self.transaction_volume = 1    # 交易手数
         self.order_timeout = 0.8       # 订单超时时间（秒）
-        self.min_profit_points = 10    # 基本利润（最小盈利）
+        self.min_profit_points = 3    # 基本利润（最小盈利）
         self.slippage_points = 50 * 4  # 做一次差价就是4次下单，一次滑点设为50
         self.commission_point = 2      # 做一次差价开平的手续费成本,12，一跳10元
         self.klines_std_k = 3          # 计算标准差倍数，用于计算上下轨
