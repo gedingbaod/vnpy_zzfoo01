@@ -251,41 +251,48 @@ class RiskManager:
             status = position.get("position_status", "N/A")
             output_lines.append(f"  状态: {status}")
 
-            # 开仓相关
+            # 时间信息（一行4个）
+            time_parts: list[str] = []
             if position.get("open_start_time"):
-                output_lines.append(f"  开仓开始时间: {position.get('open_start_time')}")
+                time_parts.append(f"开仓开始时间: {position.get('open_start_time')}")
             if position.get("open_finish_time"):
-                output_lines.append(f"  开仓完成时间: {position.get('open_finish_time')}")
-
-            # 平仓相关
+                time_parts.append(f"开仓完成时间: {position.get('open_finish_time')}")
             if position.get("close_start_time"):
-                output_lines.append(f"  平仓开始时间: {position.get('close_start_time')}")
+                time_parts.append(f"平仓开始时间: {position.get('close_start_time')}")
             if position.get("close_finish_time"):
-                output_lines.append(f"  平仓完成时间: {position.get('close_finish_time')}")
+                time_parts.append(f"平仓完成时间: {position.get('close_finish_time')}")
+            if time_parts:
+                output_lines.append(f"  {'  '.join(time_parts)}")
 
             # 异常相关
             if position.get("exception_time"):
                 output_lines.append(f"  异常时间: {position.get('exception_time')}")
 
-            # 订单ID
+            # 订单ID（一行4个）
+            order_id_parts: list[str] = []
             if position.get("near_open_order_id"):
-                output_lines.append(f"  近月开仓订单ID: {position.get('near_open_order_id')}")
+                order_id_parts.append(f"近月开仓订单ID: {position.get('near_open_order_id')}")
             if position.get("far_open_order_id"):
-                output_lines.append(f"  远月开仓订单ID: {position.get('far_open_order_id')}")
+                order_id_parts.append(f"远月开仓订单ID: {position.get('far_open_order_id')}")
             if position.get("near_close_order_id"):
-                output_lines.append(f"  近月平仓订单ID: {position.get('near_close_order_id')}")
+                order_id_parts.append(f"近月平仓订单ID: {position.get('near_close_order_id')}")
             if position.get("far_close_order_id"):
-                output_lines.append(f"  远月平仓订单ID: {position.get('far_close_order_id')}")
+                order_id_parts.append(f"远月平仓订单ID: {position.get('far_close_order_id')}")
+            if order_id_parts:
+                output_lines.append(f"  {'  '.join(order_id_parts)}")
 
-            # 订单状态
+            # 订单状态（一行4个）
+            status_parts: list[str] = []
             if position.get("near_open_status"):
-                output_lines.append(f"  近月开仓状态: {position.get('near_open_status')}")
+                status_parts.append(f"近月开仓状态: {position.get('near_open_status')}")
             if position.get("far_open_status"):
-                output_lines.append(f"  远月开仓状态: {position.get('far_open_status')}")
+                status_parts.append(f"远月开仓状态: {position.get('far_open_status')}")
             if position.get("near_close_status"):
-                output_lines.append(f"  近月平仓状态: {position.get('near_close_status')}")
+                status_parts.append(f"近月平仓状态: {position.get('near_close_status')}")
             if position.get("far_close_status"):
-                output_lines.append(f"  远月平仓状态: {position.get('far_close_status')}")
+                status_parts.append(f"远月平仓状态: {position.get('far_close_status')}")
+            if status_parts:
+                output_lines.append(f"  {'  '.join(status_parts)}")
 
             # 合约信息
             if position.get("near_symbol"):
