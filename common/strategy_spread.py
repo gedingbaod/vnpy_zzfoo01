@@ -1393,7 +1393,7 @@ class SpreadTradingStrategy(BaseStrategy):
         平仓价差持仓
 
         逻辑：
-        1. 获取当前持仓（global_position[SPREAD_POSITION]）
+        1. 获取当前持仓
         2. 根据持仓的 position_type 确定平仓方向：
            - 做空价差持仓：买入近月，卖出远月（LONG, SHORT）
            - 做多价差持仓：卖出近月，买入远月（SHORT, LONG）
@@ -1407,7 +1407,7 @@ class SpreadTradingStrategy(BaseStrategy):
         """
         try:
             # 获取当前持仓
-            position = self.global_position.get(SPREAD_POSITION)
+            position = self.spread_position
             if not position:
                 return  # 无持仓
 
@@ -1424,10 +1424,6 @@ class SpreadTradingStrategy(BaseStrategy):
             elif position_type == SPREAD_POSITION_TYPE_LONG:
                 # 平做多价差：卖出近月，买入远月
                 self._spread_close_long(near_quote, far_quote)
-
-            # 清空持仓
-            del self.global_position[SPREAD_POSITION]
-            self.gateway.write_log("价差持仓已平仓")
 
         except Exception as e:
             self.gateway.write_log(f"平仓异常: {str(e)}")

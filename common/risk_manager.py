@@ -113,15 +113,17 @@ class RiskManager:
                 # 每3分钟检查一次
                 self.interrupt_event.wait(180)
 
-                # 临时使用近月合约，后期可以再优化
-                rt1 = self._check_closing_time()
                 # 检查价格限制
-                rt2 = self._check_price_limit()
-                # 逻辑与，全为True，结果为True
-                self.strategy.is_tradable = (not rt1) and (not rt2)
+                rt_price_limit = self._check_price_limit()
 
-                # 强制平仓
-                if rt1 and self.strategy.global_position:
+                # 临时使用近月合约，后期可以再优化
+                rt_closing_time = self._check_closing_time()
+
+                # 逻辑与，全为True，结果为True
+                self.strategy.is_tradable = (not rt_closing_time) and (not rt_price_limit)
+
+                # 如果不可交易，做一次强制平仓
+                if not self.strategy.is_tradable:
                     self.strategy.gateway.write_log("收盘前强制平仓")
                     self.strategy.close_position(force=True)
 
