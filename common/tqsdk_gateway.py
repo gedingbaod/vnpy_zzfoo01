@@ -16,9 +16,10 @@ import pandas as pd
 from tqsdk.objs import Quote
 from tqsdk import TqApi, TqAuth
 
+from common.func_magic import print_msg_with_time_once
 from common.gateway_tq import BaseGatewayTq
 from common.risk_manager import RiskManager
-from common.strategy_spread import AgSpreadStrategy, EVENT_UPDATE_QUOTE, SnSpreadStrategy
+from common.strategy_spread import AgSpreadStrategy, EVENT_UPDATE_QUOTE, SnSpreadStrategy, NiSpreadStrategy
 from vnpy.event import Event
 from vnpy.trader.constant import (
     Direction,
@@ -39,7 +40,8 @@ from vnpy.trader.utility import get_folder_path, ZoneInfo
 
 try:
     from common.account.tq_account import tq_auth
-    from common.vnpy_time import datetime_format
+    from common.vnpy_time import datetime_format, get_now_str
+
     TQ_AUTH_AVAILABLE = True
 except ImportError:
     TQ_AUTH_AVAILABLE = False
@@ -114,7 +116,7 @@ class TqSdkMdApi:
 
         # 跨期套利策略（使用策略类管理）
         # self.spread_strategy = AgSpreadStrategy(gateway)
-        self.spread_strategy = SnSpreadStrategy(gateway)
+        self.spread_strategy = NiSpreadStrategy(gateway)
 
         # 创建风险管理器
         self.risk_manager = RiskManager(strategy=self.spread_strategy)
@@ -133,18 +135,24 @@ class TqSdkMdApi:
 
             self.gateway.write_log("TQSDK行情连接成功")
 
-            # 启动行情接收线程
+
+
+            # 订阅合约之后，启动行情接收线程
+            start_time_str = get_now_str()
+            self.gateway.write_log(f"启动TQSDK行情线程，时间{start_time_str}")
             self.active = True
             self.thread = Thread(target=self._run, name="TqsdkQuoteLoop")
             self.thread.start()
-            self.gateway.write_log("TQSDK行情线程启动")
 
-            # 订阅之前已经订阅的合约
+
+            # 连接TqApi后即可把之前已经订阅的合约，真正开始订阅
+            # 放在线程启动之后，可以接受一次行情数据，否则接受不到
             for symbol in self.subscribed:
-                # 在AgSpreadStrategy已经订阅了两个合约，这里真正订阅
+                # 在SpreadStrategy已经订阅了两个合约，这里真正订阅
                 self._subscribe_symbol(symbol)
             event: Event = Event(type=EVENT_UPDATE_QUOTE)
             self.gateway.event_engine.put(event)
+
 
             self.risk_manager.start()
 
@@ -196,11 +204,16 @@ class TqSdkMdApi:
             self.gateway.write_log(f"TQSDK订阅行情失败 [{tq_symbol}]：{str(e)}")
 
     def _run(self) -> None:
+        start_time_str = get_now_str()
+        self.gateway.write_log(f"TQSDK行情线程启动，时间{start_time_str}")
+
         """行情接收线程"""
         while self.active:
             try:
                 # 等待行情推送
                 self.api.wait_update()
+
+                print_msg_with_time_once("第一次接受到数据")
 
                 # 检查是否有跨期合约的行情，执行跨期套利策略
                 self.spread_strategy.check_and_run(self.quotes, self.klines)

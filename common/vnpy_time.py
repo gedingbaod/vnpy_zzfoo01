@@ -32,10 +32,11 @@ def get_timestamp():
     return time.time()
 
 def date_format_shorten(dt_str: str) -> str:
-    """最高性能：直接切片"""
+    """最高性能：直接切片，用来把日期从2026-01-05改为20260105"""
     return dt_str[0:4] + dt_str[5:7] + dt_str[8:10]
 
 def datetime_format(dt_str):
+    """最高性能：直接切片，用来处理quote.datetime提供的字符串日期"""
     return datetime(
         int(dt_str[:4]),
         int(dt_str[5:7]),

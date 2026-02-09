@@ -20,7 +20,8 @@ import numpy as np
 import pandas as pd
 from tqsdk.objs import Quote
 
-from common.vnpy_time import get_timestamp, get_now_str
+from common.func_magic import print_msg_with_time_third
+from common.vnpy_time import get_timestamp, get_now_str, datetime_format
 from vnpy.trader.constant import Direction, Offset, Exchange, OrderType, Status
 from vnpy.trader.event import EVENT_ORDER
 from vnpy.trader.object import OrderRequest, CancelRequest, SubscribeRequest, PositionData, OrderData
@@ -206,6 +207,7 @@ class SpreadTradingStrategy(BaseStrategy):
 
         # 状态标志（跨期套利特有）
         self.position_loaded: bool = False  # 是否已经加载过持仓信息，True后才开始交易
+        self.quote_subscribed: bool = False  # 是否已经订阅合约，True后才开始交易
         self.approaching_daily_limit = False  # 接近当日的涨停价或跌停价
 
         # 注册订单异常等事件
@@ -263,8 +265,8 @@ class SpreadTradingStrategy(BaseStrategy):
         klines_sub : Dict[str, pd.DataFrame]
             已订阅的行情字典 {symbol: Quote}
         """
-        # 检查持仓信息是否已加载，未加载则返回等待
-        if not self.position_loaded:
+        # 检查是否已订阅合约，未订阅返回等待
+        if not self.quote_subscribed:
             return  # 等待持仓信息加载完成
 
         # # 检查近月和远月合约行情是否都已订阅
@@ -297,22 +299,38 @@ class SpreadTradingStrategy(BaseStrategy):
         """
         try:
             if near_quote.datetime=='' or far_quote.datetime=='':
+                start_time_str = get_now_str()
+                self.gateway.write_log(f"TQSDK行情datetime数据为空，时间{start_time_str}")
                 return False
             # quote.datetime格式：2025-12-17 22:28:03.500001
             # 去除datetime秒后面的5个0（字符串切片：去掉最后5个字符） 结果："13:30:00.5"
-            near_time_processed = str(near_quote.datetime)[:-5]
-            far_time_processed = str(far_quote.datetime)[:-5]
+            # near_time_processed = str(near_quote.datetime)[:-5]
+            # far_time_processed = str(far_quote.datetime)[:-5]
+            # near_time = datetime.strptime(near_time_processed, '%Y-%m-%d %H:%M:%S.%f')
+            # far_time = datetime.strptime(far_time_processed, '%Y-%m-%d %H:%M:%S.%f')
 
-            near_time = datetime.strptime(near_time_processed, '%Y-%m-%d %H:%M:%S.%f')
-            far_time = datetime.strptime(far_time_processed, '%Y-%m-%d %H:%M:%S.%f')
+            # 使用600即可省去字符串的处理
+            near_time = datetime_format(near_quote.datetime)
+            far_time = datetime_format(far_quote.datetime)
+
+            print_msg_with_time_third(f"TQSDK行情时间 near_time: {near_time} far_time:{far_time}")
 
             # 关键：带精度容错判断是否为0.5秒（避免浮点数精度问题）
-            if abs(near_time - far_time) > timedelta(milliseconds=500):
+            if abs(near_time - far_time) > timedelta(milliseconds=600):
                 # 要求时间戳同步（允许0.5秒误差）
+                start_time_str = get_now_str()
+                self.gateway.write_log(f"TQSDK行情时间不同步，"
+                        f"near_time: {near_time}"
+                        f"{'.' if near_time.microsecond == 0 else ''}{near_time.microsecond if near_time.microsecond == 0 else ''}，"
+                        f"far_time:{far_time}"
+                        f"{'.' if far_time.microsecond == 0 else ''}{far_time.microsecond if far_time.microsecond == 0 else ''}，"
+                        f"时间{start_time_str}")
                 return False
 
-            # 要求两个合约都有价格数据
+            # 要求两个合约是否都有价格数据
             if math.isnan(near_quote.last_price) or math.isnan(far_quote.last_price):
+                start_time_str = get_now_str()
+                self.gateway.write_log(f"TQSDK行情没有价格数据，时间{start_time_str}")
                 return False
         except Exception as e:
             self.gateway.write_log(f"检查数据同步异常: {str(e)}")
@@ -1145,136 +1163,137 @@ class SpreadTradingStrategy(BaseStrategy):
         self.spread_quotes.append(self.gateway.tq_md_api.quotes[self.far_symbol])
         self.spread_klines.append(self.gateway.tq_md_api.klines[self.near_symbol])
         self.spread_klines.append(self.gateway.tq_md_api.klines[self.far_symbol])
+        self.quote_subscribed = True
 
-    def on_position_update_not_use(self, positions: list[PositionData]) -> None:
-        """持仓更新回调（从TdApi的onRspQryInvestorPosition调用）
-
-        Parameters
-        ----------
-        positions : list
-            持仓列表
-        """
-        try:
-            # if not self.position_loaded:
-            self.gateway.write_log("收到持仓更新回调，开始处理...")
-
-            # 检查是否有ag2604和ag2606的持仓
-            near_long_positions = []  # 近期多头
-            near_short_positions = []  # 近期空头
-            far_long_positions = []    # 远期多头
-            far_short_positions = []   # 远期空头
-
-            for pos in positions:
-                if pos.volume > 0 and pos.symbol in [self.near_symbol, self.far_symbol]:
-                    # self.gateway.write_log(f"发现{pos.symbol}持仓: {pos.direction.value} {pos.volume}手")
-
-                    # 分类记录
-                    if pos.symbol == self.near_symbol:
-                        if pos.direction == Direction.LONG:
-                            near_long_positions.append(pos)
-                        else:
-                            near_short_positions.append(pos)
-                    else:  # far_symbol
-                        if pos.direction == Direction.LONG:
-                            far_long_positions.append(pos)
-                        else:
-                            far_short_positions.append(pos)
-
-            # 根据持仓情况恢复策略状态
-            position_restored = False
-
-            # 检查是否是做空价差持仓（near空 + far多）
-            if (near_short_positions and far_long_positions and
-                len(near_short_positions) == self.transaction_volume and
-                len(far_long_positions) == self.transaction_volume):
-
-                existing_position = self.global_position.get(SPREAD_POSITION)
-
-                # if not self.position_loaded:
-                self.gateway.write_log("检测到做空价差持仓，已恢复策略状态")
-
-                # if existing_position:
-                #     # 持仓已存在，只更新必要字段，保留原有信息
-                #     existing_position.update({
-                #         "near_volume": near_short_positions[0].volume,
-                #         "near_yd_volume": near_short_positions[0].yd_volume,
-                #         "far_volume": far_long_positions[0].volume,
-                #         "far_yd_volume": far_long_positions[0].yd_volume,
-                #     })
-                # else:
-                # 首次加载，创建完整持仓信息
-                self.spread_position.update({
-                    POSITION_STATUS: PositionStatus.OPENED,
-                    SPREAD_POSITION_TYPE: SPREAD_POSITION_TYPE_SHORT,  # 持仓类型
-                    # "open_finish_time": get_now_str(),  # 使用当前时间作为开仓时间
-                    # "open_spread": near_short_positions[0].price - far_long_positions[0].price,  # 原始开仓价是近期买1-远期卖1 或者近期卖1-远期买1，这里只能用两个实际成交价相减
-                    "near_symbol": near_short_positions[0].symbol,
-                    "near_open_order_id": "",
-                    "near_open_status": Status.ALLTRADED,
-                    "near_open_price": near_short_positions[0].price,
-                    "near_volume": near_short_positions[0].volume,
-                    "near_yd_volume": near_short_positions[0].yd_volume,  # 昨仓数量
-                    "far_symbol": far_long_positions[0].symbol,
-                    "far_open_order_id": "",
-                    "far_open_status": Status.ALLTRADED,
-                    "far_open_price": far_long_positions[0].price,
-                    "far_volume": far_long_positions[0].volume,
-                    "far_yd_volume": far_long_positions[0].yd_volume,  # 昨仓数量
-                })
-                position_restored = True
-
-            # 检查是否是做多价差持仓（near多 + far空）
-            elif (near_long_positions and far_short_positions and
-                  len(near_long_positions) == self.transaction_volume and
-                  len(far_short_positions) == self.transaction_volume):
-
-                existing_position = self.global_position.get(SPREAD_POSITION)
-
-                # if not self.position_loaded:
-                self.gateway.write_log("检测到做多价差持仓，已恢复策略状态")
-
-                # if existing_position:
-                #     # 持仓已存在，只更新必要字段，保留原有信息
-                #     existing_position.update({
-                #         "near_volume": near_long_positions[0].volume,
-                #         "near_yd_volume": near_long_positions[0].yd_volume,
-                #         "far_volume": far_short_positions[0].volume,
-                #         "far_yd_volume": far_short_positions[0].yd_volume,
-                #     })
-                # else:
-                # 首次加载，创建完整持仓信息
-                self.spread_position.update({
-                    POSITION_STATUS: PositionStatus.OPENED,
-                    SPREAD_POSITION_TYPE: SPREAD_POSITION_TYPE_LONG,  # 持仓类型
-                    # "open_finish_time": get_now_str(),  # 使用当前时间作为开仓时间
-                    # "open_spread": near_long_positions[0].price - far_short_positions[0].price,  # 无法获取原始开仓价差，设为0
-                    "near_symbol": near_long_positions[0].symbol,
-                    "near_open_order_id": "",
-                    "near_open_status": Status.ALLTRADED,
-                    "near_open_price": near_long_positions[0].price,
-                    "near_volume": near_long_positions[0].volume,
-                    "near_yd_volume": near_long_positions[0].yd_volume,  # 昨仓数量
-                    "far_symbol": far_short_positions[0].symbol,
-                    "far_open_order_id": "",
-                    "far_open_status": Status.ALLTRADED,
-                    "far_open_price": far_short_positions[0].price,
-                    "far_volume": far_short_positions[0].volume,
-                    "far_yd_volume": far_short_positions[0].yd_volume,  # 昨仓数量
-                })
-                position_restored = True
-
-            # 保证系统启动时只执行一次
-            # if not self.position_loaded:
-            if position_restored:
-                self.gateway.write_log("持仓状态恢复完成，策略可以继续交易")
-            else:
-                self.gateway.write_log("未检测到价差持仓，策略准备就绪")
-            # 这个状态设置后，才可以交易，因为启动时会更新
-            self.position_loaded = True
-
-        except Exception as e:
-            self.gateway.write_log(f"处理持仓更新异常: {str(e)}")
-            self.position_loaded = False  # 持仓更新异常不允许交易
+    # def on_position_update_not_use(self, positions: list[PositionData]) -> None:
+    #     """持仓更新回调（从TdApi的onRspQryInvestorPosition调用）
+    #
+    #     Parameters
+    #     ----------
+    #     positions : list
+    #         持仓列表
+    #     """
+    #     try:
+    #         # if not self.position_loaded:
+    #         self.gateway.write_log("收到持仓更新回调，开始处理...")
+    #
+    #         # 检查是否有ag2604和ag2606的持仓
+    #         near_long_positions = []  # 近期多头
+    #         near_short_positions = []  # 近期空头
+    #         far_long_positions = []    # 远期多头
+    #         far_short_positions = []   # 远期空头
+    #
+    #         for pos in positions:
+    #             if pos.volume > 0 and pos.symbol in [self.near_symbol, self.far_symbol]:
+    #                 # self.gateway.write_log(f"发现{pos.symbol}持仓: {pos.direction.value} {pos.volume}手")
+    #
+    #                 # 分类记录
+    #                 if pos.symbol == self.near_symbol:
+    #                     if pos.direction == Direction.LONG:
+    #                         near_long_positions.append(pos)
+    #                     else:
+    #                         near_short_positions.append(pos)
+    #                 else:  # far_symbol
+    #                     if pos.direction == Direction.LONG:
+    #                         far_long_positions.append(pos)
+    #                     else:
+    #                         far_short_positions.append(pos)
+    #
+    #         # 根据持仓情况恢复策略状态
+    #         position_restored = False
+    #
+    #         # 检查是否是做空价差持仓（near空 + far多）
+    #         if (near_short_positions and far_long_positions and
+    #             len(near_short_positions) == self.transaction_volume and
+    #             len(far_long_positions) == self.transaction_volume):
+    #
+    #             existing_position = self.global_position.get(SPREAD_POSITION)
+    #
+    #             # if not self.position_loaded:
+    #             self.gateway.write_log("检测到做空价差持仓，已恢复策略状态")
+    #
+    #             # if existing_position:
+    #             #     # 持仓已存在，只更新必要字段，保留原有信息
+    #             #     existing_position.update({
+    #             #         "near_volume": near_short_positions[0].volume,
+    #             #         "near_yd_volume": near_short_positions[0].yd_volume,
+    #             #         "far_volume": far_long_positions[0].volume,
+    #             #         "far_yd_volume": far_long_positions[0].yd_volume,
+    #             #     })
+    #             # else:
+    #             # 首次加载，创建完整持仓信息
+    #             self.spread_position.update({
+    #                 POSITION_STATUS: PositionStatus.OPENED,
+    #                 SPREAD_POSITION_TYPE: SPREAD_POSITION_TYPE_SHORT,  # 持仓类型
+    #                 # "open_finish_time": get_now_str(),  # 使用当前时间作为开仓时间
+    #                 # "open_spread": near_short_positions[0].price - far_long_positions[0].price,  # 原始开仓价是近期买1-远期卖1 或者近期卖1-远期买1，这里只能用两个实际成交价相减
+    #                 "near_symbol": near_short_positions[0].symbol,
+    #                 "near_open_order_id": "",
+    #                 "near_open_status": Status.ALLTRADED,
+    #                 "near_open_price": near_short_positions[0].price,
+    #                 "near_volume": near_short_positions[0].volume,
+    #                 "near_yd_volume": near_short_positions[0].yd_volume,  # 昨仓数量
+    #                 "far_symbol": far_long_positions[0].symbol,
+    #                 "far_open_order_id": "",
+    #                 "far_open_status": Status.ALLTRADED,
+    #                 "far_open_price": far_long_positions[0].price,
+    #                 "far_volume": far_long_positions[0].volume,
+    #                 "far_yd_volume": far_long_positions[0].yd_volume,  # 昨仓数量
+    #             })
+    #             position_restored = True
+    #
+    #         # 检查是否是做多价差持仓（near多 + far空）
+    #         elif (near_long_positions and far_short_positions and
+    #               len(near_long_positions) == self.transaction_volume and
+    #               len(far_short_positions) == self.transaction_volume):
+    #
+    #             existing_position = self.global_position.get(SPREAD_POSITION)
+    #
+    #             # if not self.position_loaded:
+    #             self.gateway.write_log("检测到做多价差持仓，已恢复策略状态")
+    #
+    #             # if existing_position:
+    #             #     # 持仓已存在，只更新必要字段，保留原有信息
+    #             #     existing_position.update({
+    #             #         "near_volume": near_long_positions[0].volume,
+    #             #         "near_yd_volume": near_long_positions[0].yd_volume,
+    #             #         "far_volume": far_short_positions[0].volume,
+    #             #         "far_yd_volume": far_short_positions[0].yd_volume,
+    #             #     })
+    #             # else:
+    #             # 首次加载，创建完整持仓信息
+    #             self.spread_position.update({
+    #                 POSITION_STATUS: PositionStatus.OPENED,
+    #                 SPREAD_POSITION_TYPE: SPREAD_POSITION_TYPE_LONG,  # 持仓类型
+    #                 # "open_finish_time": get_now_str(),  # 使用当前时间作为开仓时间
+    #                 # "open_spread": near_long_positions[0].price - far_short_positions[0].price,  # 无法获取原始开仓价差，设为0
+    #                 "near_symbol": near_long_positions[0].symbol,
+    #                 "near_open_order_id": "",
+    #                 "near_open_status": Status.ALLTRADED,
+    #                 "near_open_price": near_long_positions[0].price,
+    #                 "near_volume": near_long_positions[0].volume,
+    #                 "near_yd_volume": near_long_positions[0].yd_volume,  # 昨仓数量
+    #                 "far_symbol": far_short_positions[0].symbol,
+    #                 "far_open_order_id": "",
+    #                 "far_open_status": Status.ALLTRADED,
+    #                 "far_open_price": far_short_positions[0].price,
+    #                 "far_volume": far_short_positions[0].volume,
+    #                 "far_yd_volume": far_short_positions[0].yd_volume,  # 昨仓数量
+    #             })
+    #             position_restored = True
+    #
+    #         # 保证系统启动时只执行一次
+    #         # if not self.position_loaded:
+    #         if position_restored:
+    #             self.gateway.write_log("持仓状态恢复完成，策略可以继续交易")
+    #         else:
+    #             self.gateway.write_log("未检测到价差持仓，策略准备就绪")
+    #         # 这个状态设置后，才可以交易，因为启动时会更新
+    #         self.position_loaded = True
+    #
+    #     except Exception as e:
+    #         self.gateway.write_log(f"处理持仓更新异常: {str(e)}")
+    #         self.position_loaded = False  # 持仓更新异常不允许交易
 
     def _check_pending_orders_timeout(self) -> None:
         """

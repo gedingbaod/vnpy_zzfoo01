@@ -591,22 +591,22 @@ class CtpTdApi(TdApi):
 
         # 由于流控，单次查询可能失败，通过while循环持续尝试，直到成功发出请求
         while True:
-            # self.reqid += 1
-            # req = {
-            #     "ExchangeID": "SHFE",  # 指定交易所，如果不指定则查询所有
-            #     "InstrumentID": ""  # 指定合约代码，为空则查询该交易所所有
-            # }
-            # n: int = self.reqQryInstrument(req, self.reqid)
+            self.reqid += 1
+            req = {
+                "ExchangeID": "SHFE",  # 指定交易所，如果不指定则查询所有
+                "InstrumentID": ""  # 指定合约代码，为空则查询该交易所所有
+            }
+            n: int = self.reqQryInstrument(req, self.reqid)
 
             # 为每个交易所发送查询请求
-            for exchange_id in EXCHANGE_CTP2VT.keys():
-                req = {
-                    "ExchangeID": exchange_id,
-                    "InstrumentID": ""  # 查询该交易所所有合约
-                }
-                self.reqid += 1 # 获取请求ID
-                n: int = self.reqQryInstrument(req, self.reqid)
-                print(f"已发送 {exchange_id} 交易所合约查询请求，请求ID: {self.reqid}")
+            # for exchange_id in EXCHANGE_CTP2VT.keys():
+            #     req = {
+            #         "ExchangeID": exchange_id,
+            #         "InstrumentID": ""  # 查询该交易所所有合约
+            #     }
+            #     self.reqid += 1 # 获取请求ID
+            #     n: int = self.reqQryInstrument(req, self.reqid)
+            #     print(f"已发送 {exchange_id} 交易所合约查询请求，请求ID: {self.reqid}")
 
             if not n:
                 break
@@ -741,9 +741,9 @@ class CtpTdApi(TdApi):
             symbol_contract_map[contract.symbol] = contract
 
         if last:
-            if not self.gateway.loaded_set.issuperset(set(EXCHANGE_CTP2VT.keys())):
-                # 如果还没有加载完，就返回，直到所有交易所都加载完成
-                return
+            # if not self.gateway.loaded_set.issuperset(set(EXCHANGE_CTP2VT.keys())):
+            #     # 如果还没有加载完，就返回，直到所有交易所都加载完成
+            #     return
             self.contract_inited = True
             self.gateway.write_log("合约信息查询成功")
 
