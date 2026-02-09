@@ -20,7 +20,7 @@ import numpy as np
 import pandas as pd
 from tqsdk.objs import Quote
 
-from common.func_magic import print_msg_with_time_third
+from common.func_magic import print_msg_with_time_third, print_msg_with_time_fifth
 from common.vnpy_time import get_timestamp, get_now_str, datetime_format
 from vnpy.trader.constant import Direction, Offset, Exchange, OrderType, Status
 from vnpy.trader.event import EVENT_ORDER
@@ -313,7 +313,7 @@ class SpreadTradingStrategy(BaseStrategy):
             near_time = datetime_format(near_quote.datetime)
             far_time = datetime_format(far_quote.datetime)
 
-            print_msg_with_time_third(f"TQSDK行情时间 near_time: {near_time} far_time:{far_time}")
+            print_msg_with_time_fifth(f"TQSDK行情时间 near_time: {near_time} far_time:{far_time}")
 
             # 关键：带精度容错判断是否为0.5秒（避免浮点数精度问题）
             if abs(near_time - far_time) > timedelta(milliseconds=600):
@@ -341,20 +341,20 @@ class SpreadTradingStrategy(BaseStrategy):
     def _klines_calculate(self, quotes_sub: Dict[str, Quote], klines_sub: Dict[str, pd.DataFrame]):
         near_klines = klines_sub[self.near_symbol]
         far_klines = klines_sub[self.far_symbol]
-        # 两个kline 都没变化就返回
-        if (not self.gateway.tq_md_api.api.is_changing(near_klines)
-                and not self.gateway.tq_md_api.api.is_changing(far_klines)):
-            return
-        # 确保有足够的数据
-        if len(near_klines) < self.klines_windows or len(far_klines) < self.klines_windows:
-            self.gateway.write_log(f"时间窗口不一致， near_klines: {len(near_klines)} far_klines: {len(far_klines)}")
-            return
+        # # 两个kline 都没变化就返回
+        # if (not self.gateway.tq_md_api.api.is_changing(near_klines)
+        #         and not self.gateway.tq_md_api.api.is_changing(far_klines)):
+        #     return
+        # # 确保有足够的数据
+        # if len(near_klines) < self.klines_windows or len(far_klines) < self.klines_windows:
+        #     self.gateway.write_log(f"时间窗口不一致， near_klines: {len(near_klines)} far_klines: {len(far_klines)}")
+        #     return
 
         # 计算盘口成本
         near_quote: Quote = quotes_sub[self.near_symbol]
         far_quote: Quote = quotes_sub[self.far_symbol]
         # 计算逻辑价差
-        current_spread = near_quote.last_price - far_quote.last_price
+        # current_spread = near_quote.last_price - far_quote.last_price
         # 获取真实价差
         # 开仓时的盘口成本，以空差为例：  (近期买1价-远期卖1价) - (近期卖1价-远期买1价)   结果为负数就是成本，为正数就是利润
         # 盘口成本为负时，说明价差还可能会上涨，比如会到-10，所以等价差从高点开始回落，再下单是比较好的时机
@@ -388,8 +388,17 @@ class SpreadTradingStrategy(BaseStrategy):
 
         else:
             self.gateway.write_log(f"---near_klines时间：{near_kline_time}, far_klines时间：{far_kline_time}， near_klines时间快")
-            # 数据没对齐就用前值
+            # 数据没对齐就用前值，但是dynamic_spread_cost是变化的
             if self.current_spread_indicator is not None:
+                # klines虽然没变，但是dynamic_spread_cost是变化的，所以要重新计算
+                (mean, std, upper_bound, lower_bound) = self.current_spread_indicator
+                # 计算上轨边界
+                upper_bound = mean + max(self.klines_std_k * std, dynamic_spread_cost)  # 出于风控，不能低于THRESHOLD_DOWN
+                # 计算下轨边界
+                lower_bound = mean - max(self.klines_std_k * std, dynamic_spread_cost)
+                # 重新赋值
+                self.current_spread_indicator = (mean, std, upper_bound, lower_bound)
+
                 return self.current_spread_indicator
             else:
                 # 数据不存在，返回空
