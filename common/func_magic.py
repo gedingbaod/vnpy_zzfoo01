@@ -57,3 +57,11 @@ def print_msg_with_time_third(msg: str):
 @run_limited(max_runs=5)
 def print_msg_with_time_fifth(msg: str):
     print(f'{msg} at {get_now_str()}')
+
+@run_limited(max_runs=10)
+def print_msg_with_time_tenth(msg: str):
+    print(f'{msg} at {get_now_str()}')
+
+@run_limited(max_runs=20)
+def print_msg_with_time_twentieth(msg: str):
+    print(f'{msg} at {get_now_str()}')

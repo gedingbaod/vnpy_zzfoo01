@@ -16,7 +16,7 @@ import pandas as pd
 from tqsdk.objs import Quote
 from tqsdk import TqApi, TqAuth
 
-from common.func_magic import print_msg_with_time_once
+from common.func_magic import print_msg_with_time_once,print_msg_with_time_fifth,print_msg_with_time_twentieth
 from common.gateway_tq import BaseGatewayTq
 from common.risk_manager import RiskManager
 from common.strategy_spread import AgSpreadStrategy, EVENT_UPDATE_QUOTE, SnSpreadStrategy, NiSpreadStrategy
@@ -213,7 +213,7 @@ class TqSdkMdApi:
                 # 等待行情推送
                 self.api.wait_update()
 
-                print_msg_with_time_once("第一次接受到数据")
+                print_msg_with_time_twentieth(self.quotes)
 
                 # 检查是否有跨期合约的行情，执行跨期套利策略
                 self.spread_strategy.check_and_run(self.quotes, self.klines)
