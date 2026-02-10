@@ -1522,10 +1522,8 @@ class SpreadTradingStrategy(BaseStrategy):
         try:
             # 获取当前持仓
             position = self.spread_position
-            if not position:
-                return  # 无持仓
-            if position[POSITION_STATUS] == PositionStatus.EXCEPTION:
-                return  # 持仓异常
+            if position[POSITION_STATUS] in [PositionStatus.CLOSED,PositionStatus.EXCEPTION]:
+                return  # 无持仓或持仓异常
             position_type = position.get(SPREAD_POSITION_TYPE)
             if not position_type:
                 return  # 无持仓类型
