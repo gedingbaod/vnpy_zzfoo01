@@ -1138,12 +1138,17 @@ class SpreadTradingStrategy(BaseStrategy):
                         and position.get("far_close_status") in [Status.REJECTED, Status.CANCELLED] ):
                         # 都未成交则清空仓位
                         self._exception_process()
+
                     elif (position.get("near_close_status") in [Status.REJECTED, Status.CANCELLED]
                         and position.get("far_close_status") == Status.ALLTRADED ):
+                        # 单腿成交则清空仓位
                         self._handle_partial_fill()
+
                     elif (position.get("far_close_status") in [Status.REJECTED, Status.CANCELLED]
-                              and position.get("near_close_status") == Status.ALLTRADED):
+                        and position.get("near_close_status") == Status.ALLTRADED):
+                        # 单腿成交则清空仓位
                         self._handle_partial_fill()
+
                 # # 从待成交订单中移除
                 # if vt_orderid in self.pending_orders:
                 #     del self.pending_orders[vt_orderid]
