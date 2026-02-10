@@ -1523,6 +1523,7 @@ class SpreadTradingStrategy(BaseStrategy):
             # 获取当前持仓
             position = self.spread_position
             if position[POSITION_STATUS] in [PositionStatus.CLOSED,PositionStatus.EXCEPTION]:
+                self.gateway.write_log(f"没有要平的仓位: {position[POSITION_STATUS]}")
                 return  # 无持仓或持仓异常
             position_type = position.get(SPREAD_POSITION_TYPE)
             if not position_type:
