@@ -111,7 +111,7 @@ class RiskManager:
         while self.active:
             try:
                 # 每3分钟检查一次
-                self.interrupt_event.wait(180)
+                self.interrupt_event.wait(300)
 
                 # 检查价格限制
                 rt_price_limit = self._check_price_limit()
