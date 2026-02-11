@@ -3,12 +3,13 @@
 包含白银跨期套利策略的实现
 """
 
-from __future__ import annotations
+# from __future__ import annotations
 
 import copy
 import math
 import sys
 import threading
+from cmath import isnan
 from enum import Enum
 import time as lazy_time
 from abc import ABC, abstractmethod
@@ -21,6 +22,7 @@ import pandas as pd
 from tqsdk.objs import Quote
 
 from common.func_magic import print_msg_with_time_third, print_msg_with_time_fifth
+from common.time_delay import precise_time_trigger
 from common.vnpy_time import get_timestamp, get_now_str, datetime_format
 from vnpy.trader.constant import Direction, Offset, Exchange, OrderType, Status
 from vnpy.trader.event import EVENT_ORDER
@@ -30,6 +32,17 @@ from vnpy.event import Event
 if TYPE_CHECKING:
     from common.gateway_tq import BaseGatewayTq
 
+# 常量：一天的总纳秒数（24*3600*10^9）
+ONE_DAY_NS = 86400 * 10 ** 9
+# 用来卡时间的常量，用来和time.time_ns()做比较
+# 这个是当日的时间偏移量，使用时要先用ONE_DAY_NS整除
+# 注意这个是Unix时间，是没有加时区的
+# 早盘
+NS_085900 = 32340000000000
+NS_085959 = 32399900000000
+# 夜盘
+NS_205900 = 75540000000000
+NS_205959 = 75599900000000
 # 其他常量
 MAX_FLOAT = sys.float_info.max
 # 订单更新事件，用于注册
@@ -278,14 +291,24 @@ class SpreadTradingStrategy(BaseStrategy):
         if not self._check_data_sync(near_quote, far_quote):
             return
         # 计算指标
-        current_spread_indicator = self._klines_calculate(quotes_sub, klines_sub)
-        if not current_spread_indicator:
+        current_spread_indicator = self._calculate_klines(quotes_sub, klines_sub)
+        if current_spread_indicator == None:
             return
         # 检查不可交易状态，由RiskManager控制
         if not self.is_tradable:
             return
         # 以上条件都满足，调用on_tick执行策略逻辑
         self.on_tick(near_quote, far_quote)
+
+    def _check_market_opening_time(self, near_quote: Quote, far_quote: Quote) -> bool:
+        """
+        极致高性能判断：仅3步（获取纳秒戳 + 两次数值比较）
+        单次调用耗时 ≈ 20纳秒（仅time.time_ns()的系统调用开销）
+        """
+        current_ns = lazy_time.time_ns()
+        current_ns_today = current_ns % ONE_DAY_NS
+        # 直接比较纳秒戳（数值比较是CPU原生操作，无任何开销）
+        return (NS_085900 < current_ns_today < NS_085959) or (NS_205900 < current_ns_today < NS_205959)
 
     def _check_data_sync(self, near_quote: Quote, far_quote: Quote) -> bool:
         """
@@ -303,12 +326,7 @@ class SpreadTradingStrategy(BaseStrategy):
                 self.gateway.write_log(f"TQSDK行情datetime数据为空，时间{start_time_str}")
                 return False
             # quote.datetime格式：2025-12-17 22:28:03.500001
-            # 去除datetime秒后面的5个0（字符串切片：去掉最后5个字符） 结果："13:30:00.5"
-            # near_time_processed = str(near_quote.datetime)[:-5]
-            # far_time_processed = str(far_quote.datetime)[:-5]
-            # near_time = datetime.strptime(near_time_processed, '%Y-%m-%d %H:%M:%S.%f')
-            # far_time = datetime.strptime(far_time_processed, '%Y-%m-%d %H:%M:%S.%f')
-
+            # 不用去除datetime秒后面的5个0了，直接用timedelta比较
             # 使用600即可省去字符串的处理
             near_time = datetime_format(near_quote.datetime)
             far_time = datetime_format(far_quote.datetime)
@@ -316,7 +334,13 @@ class SpreadTradingStrategy(BaseStrategy):
             print_msg_with_time_fifth(f"TQSDK行情时间 near_time: {near_time} far_time:{far_time}")
 
             # 关键：带精度容错判断是否为0.5秒（避免浮点数精度问题）
-            if abs(near_time - far_time) > timedelta(milliseconds=600):
+            # _check_data_sync开仓可以差0.6秒，平仓必须时间相等
+            if self.spread_position[POSITION_STATUS] == PositionStatus.OPENED:
+                check_time_delta = timedelta(milliseconds=100)
+            else:
+                check_time_delta = timedelta(milliseconds=600)
+            # 差值就是delta
+            if abs(near_time - far_time) > check_time_delta:
                 # 要求时间戳同步（允许0.5秒误差）
                 start_time_str = get_now_str()
                 self.gateway.write_log(f"TQSDK行情时间不同步，"
@@ -338,9 +362,8 @@ class SpreadTradingStrategy(BaseStrategy):
 
         return True
 
-    def _klines_calculate(self, quotes_sub: Dict[str, Quote], klines_sub: Dict[str, pd.DataFrame]):
-        near_klines = klines_sub[self.near_symbol]
-        far_klines = klines_sub[self.far_symbol]
+    def _calculate_klines(self, quotes_sub: Dict[str, Quote], klines_sub: Dict[str, pd.DataFrame]):
+
         # # 两个kline 都没变化就返回
         # if (not self.gateway.tq_md_api.api.is_changing(near_klines)
         #         and not self.gateway.tq_md_api.api.is_changing(far_klines)):
@@ -362,6 +385,9 @@ class SpreadTradingStrategy(BaseStrategy):
         real_long_spread = near_quote.ask_price1 - far_quote.bid_price1
         dynamic_spread_cost = self.static_spread_cost + abs(real_short_spread - real_long_spread) * 2
 
+        # 计算klines价差
+        near_klines = klines_sub[self.near_symbol]
+        far_klines = klines_sub[self.far_symbol]
         # 获取两个klines的最新时间，如果不一致，则缝合数据
         near_kline_time = datetime.fromtimestamp(near_klines.datetime.iloc[-1] / 1e9)
         far_kline_time = datetime.fromtimestamp(far_klines.datetime.iloc[-1] / 1e9)
@@ -377,17 +403,21 @@ class SpreadTradingStrategy(BaseStrategy):
             spread = near_close - far_close
             # 计算均值和标准差
             mean = np.mean(spread)
+            if isnan(mean):
+                return None
             std = np.std(spread)
             # 计算上轨边界
             upper_bound = mean + max(self.klines_std_k * std, dynamic_spread_cost)   # 出于风控，不能低于THRESHOLD_DOWN
             # 计算下轨边界
             lower_bound = mean - max(self.klines_std_k * std, dynamic_spread_cost)
             # 存储前值
+
             self.current_spread_indicator = (mean, std, upper_bound, lower_bound)
+            print_msg_with_time_fifth(str(self.current_spread_indicator))
             return self.current_spread_indicator
 
         else:
-            self.gateway.write_log(f"---near_klines时间：{near_kline_time}, far_klines时间：{far_kline_time}， near_klines时间快")
+            self.gateway.write_log(f"---klines时间不一致，near_klines时间：{near_kline_time}, far_klines时间：{far_kline_time}")
             # 数据没对齐就用前值，但是dynamic_spread_cost是变化的
             if self.current_spread_indicator is not None:
                 # klines虽然没变，但是dynamic_spread_cost是变化的，所以要重新计算
@@ -398,10 +428,11 @@ class SpreadTradingStrategy(BaseStrategy):
                 lower_bound = mean - max(self.klines_std_k * std, dynamic_spread_cost)
                 # 重新赋值
                 self.current_spread_indicator = (mean, std, upper_bound, lower_bound)
-
+                print_msg_with_time_third("--klines计算完成")
                 return self.current_spread_indicator
             else:
                 # 数据不存在，返回空
+                print_msg_with_time_third("---klines时间不一致，没有前次数据")
                 return None
 
     def on_tick(self, near_quote: Quote, far_quote: Quote) -> None:
@@ -484,18 +515,29 @@ class SpreadTradingStrategy(BaseStrategy):
         """
 
         (mean, std, upper_bound, lower_bound) = self.current_spread_indicator
-        # 做空价差：价差过高（>105）
-        # 卖出近月合约，买入远月合约，预期价差会回归到中轨（35）
+        # 做空价差：价差过高
+        # 卖出近月合约，买入远月合约，预期价差会回归到中轨
         if real_short_spread > upper_bound:
-            self._spread_open_short(near_quote, far_quote, real_short_spread)
-            self.gateway.write_log(f"做空价差开仓: {real_short_spread} > {upper_bound}")
+            # 如果是在08:59:00到08:59:59之间，就做定时任务开仓
+            if self._check_market_opening_time(near_quote, far_quote):
+            # if True:
+                self._spread_open_short_delay(near_quote, far_quote, real_short_spread)
+                self.gateway.write_log(f"开盘延时开仓: {real_short_spread} > {upper_bound}")
+            else:
+                self._spread_open_short(near_quote, far_quote, real_short_spread)
+                self.gateway.write_log(f"做空价差开仓: {real_short_spread} > {upper_bound}")
             return
 
-        # 做多价差：价差过低（<-30）
-        # 买入近月合约，卖出远月合约，预期价差会回归到中轨（35）
+        # 做多价差：价差过低
+        # 买入近月合约，卖出远月合约，预期价差会回归到中轨
         if real_long_spread < lower_bound:
-            self._spread_open_long(near_quote, far_quote, real_long_spread)
-            self.gateway.write_log(f"做多价差开仓: {real_long_spread} < {lower_bound}")
+            if self._check_market_opening_time(near_quote, far_quote):
+            # if True:
+                self._spread_open_long_delay(near_quote, far_quote, real_long_spread)
+                self.gateway.write_log(f"开盘延时开仓: {real_long_spread} < {lower_bound}")
+            else:
+                self._spread_open_long(near_quote, far_quote, real_long_spread)
+                self.gateway.write_log(f"做多价差开仓: {real_long_spread} < {lower_bound}")
             return
 
     def _find_close_opportunity(self, real_short_spread, real_long_spread, near_quote, far_quote):
@@ -720,6 +762,18 @@ class SpreadTradingStrategy(BaseStrategy):
 
         except Exception as e:
             self.gateway.write_log(f"发送平多差仓订单异常: {str(e)}")
+
+    def _spread_open_short_delay(self, near_quote: Quote, far_quote: Quote, spread: float,
+                           specified_near_price:float = None, specified_far_price:float = None) -> None:
+        precise_time_trigger(target_time_str="09:00:00.000001",  # 目标时间：9点整1微秒
+                callback=self._spread_open_short,
+                near_quote=near_quote, far_quote=far_quote, spread=spread)
+
+    def _spread_open_long_delay(self, near_quote: Quote, far_quote: Quote, spread: float,
+                           specified_near_price:float = None, specified_far_price:float = None) -> None:
+        precise_time_trigger(target_time_str="09:00:00.000001",  # 目标时间：9点整1微秒
+                callback=self._spread_open_long,
+                near_quote=near_quote, far_quote=far_quote, spread=spread)
 
     def _spread_open_short(self, near_quote: Quote, far_quote: Quote, spread: float,
                            specified_near_price:float = None, specified_far_price:float = None) -> None:

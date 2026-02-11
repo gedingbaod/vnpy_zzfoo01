@@ -173,6 +173,8 @@ class CtptqttsGateway(BaseGatewayTq):
         # 这样就破坏了，原有的只加载一次的逻辑
         # 所以使用集合来判断是否已经完全加载
         self.loaded_set: set[str] = set()
+        # 判断连接的是否是tts服务器
+        self.is_tts = False
 
     def connect(self, setting: dict) -> None:
         if self.td_api.login_status:
@@ -186,6 +188,9 @@ class CtptqttsGateway(BaseGatewayTq):
         md_address: str = setting["行情服务器"]
         appid: str = setting["产品名称"]
         auth_code: str = setting["授权编码"]
+        # 如果"授权编码"为空，则判断为TTS服务器
+        if auth_code == "":
+            self.is_tts = True
         production_mode: bool = setting["柜台环境"] == "实盘"
         market_source: str = setting.get("行情源", MARKET_SOURCE_TTS)  # 获取行情源配置，默认是TTS
         self.market_source = market_source.upper()  # 保存行情源配置
@@ -592,21 +597,29 @@ class CtpTdApi(TdApi):
         # 由于流控，单次查询可能失败，通过while循环持续尝试，直到成功发出请求
         while True:
             self.reqid += 1
-            req = {
-                "ExchangeID": "SHFE",  # 指定交易所，如果不指定则查询所有
-                "InstrumentID": ""  # 指定合约代码，为空则查询该交易所所有
-            }
-            n: int = self.reqQryInstrument(req, self.reqid)
+            if self.gateway.is_tts:
+                n: int = 0
+                # req = {
+                #     "ExchangeID": "SHFE",  # 指定交易所，如果不指定则查询所有
+                #     "InstrumentID": ""  # 指定合约代码，为空则查询该交易所所有
+                # }
+                # n: int = self.reqQryInstrument(req, self.reqid)
 
-            # 为每个交易所发送查询请求
-            # for exchange_id in EXCHANGE_CTP2VT.keys():
-            #     req = {
-            #         "ExchangeID": exchange_id,
-            #         "InstrumentID": ""  # 查询该交易所所有合约
-            #     }
-            #     self.reqid += 1 # 获取请求ID
-            #     n: int = self.reqQryInstrument(req, self.reqid)
-            #     print(f"已发送 {exchange_id} 交易所合约查询请求，请求ID: {self.reqid}")
+                #为每个交易所发送查询请求
+                for exchange_id in EXCHANGE_CTP2VT.keys():
+                    req = {
+                        "ExchangeID": exchange_id,
+                        "InstrumentID": ""  # 查询该交易所所有合约
+                    }
+                    self.reqid += 1 # 获取请求ID
+                    n = self.reqQryInstrument(req, self.reqid)
+                    print(f"已发送 {exchange_id} 交易所合约查询请求，请求ID: {self.reqid}")
+            else:
+                # 0，代表成功。
+                # -1，表示网络连接失败；
+                # -2，表示未处理请求超过许可数；
+                # -3，表示每秒发送请求数超过许可数。
+                n: int = self.reqQryInstrument({}, self.reqid)
 
             if not n:
                 break
