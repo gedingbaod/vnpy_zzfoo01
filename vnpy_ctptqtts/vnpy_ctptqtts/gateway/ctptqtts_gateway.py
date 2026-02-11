@@ -754,9 +754,10 @@ class CtpTdApi(TdApi):
             symbol_contract_map[contract.symbol] = contract
 
         if last:
-            # if not self.gateway.loaded_set.issuperset(set(EXCHANGE_CTP2VT.keys())):
-            #     # 如果还没有加载完，就返回，直到所有交易所都加载完成
-            #     return
+            if self.gateway.is_tts:
+                if not self.gateway.loaded_set.issuperset(set(EXCHANGE_CTP2VT.keys())):
+                    # 如果还没有加载完，就返回，直到所有交易所都加载完成
+                    return
             self.contract_inited = True
             self.gateway.write_log("合约信息查询成功")
 

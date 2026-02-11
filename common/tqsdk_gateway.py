@@ -133,17 +133,10 @@ class TqSdkMdApi:
             else:
                 self.api = TqApi()
 
-            self.gateway.write_log("TQSDK行情连接成功")
-
-
-
             # 订阅合约之后，启动行情接收线程
-            start_time_str = get_now_str()
-            self.gateway.write_log(f"启动TQSDK行情线程，时间{start_time_str}")
             self.active = True
             self.thread = Thread(target=self._run, name="TqsdkQuoteLoop")
             self.thread.start()
-
 
             # 连接TqApi后即可把之前已经订阅的合约，真正开始订阅
             # 放在线程启动之后，可以接受一次行情数据，否则接受不到
@@ -153,7 +146,7 @@ class TqSdkMdApi:
             event: Event = Event(type=EVENT_UPDATE_QUOTE)
             self.gateway.event_engine.put(event)
 
-
+            # 启动风险管理器
             self.risk_manager.start()
 
         except Exception as e:

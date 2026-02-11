@@ -22,7 +22,7 @@ import pandas as pd
 from tqsdk.objs import Quote
 
 from common.func_magic import print_msg_with_time_third, print_msg_with_time_fifth
-from common.time_delay import precise_time_trigger
+from common.time_delay import precise_time_trigger, check_market_opening_time
 from common.vnpy_time import get_timestamp, get_now_str, datetime_format
 from vnpy.trader.constant import Direction, Offset, Exchange, OrderType, Status
 from vnpy.trader.event import EVENT_ORDER
@@ -32,17 +32,6 @@ from vnpy.event import Event
 if TYPE_CHECKING:
     from common.gateway_tq import BaseGatewayTq
 
-# 常量：一天的总纳秒数（24*3600*10^9）
-ONE_DAY_NS = 86400 * 10 ** 9
-# 用来卡时间的常量，用来和time.time_ns()做比较
-# 这个是当日的时间偏移量，使用时要先用ONE_DAY_NS整除
-# 注意这个是Unix时间，是没有加时区的
-# 早盘
-NS_085900 = 32340000000000
-NS_085959 = 32399900000000
-# 夜盘
-NS_205900 = 75540000000000
-NS_205959 = 75599900000000
 # 其他常量
 MAX_FLOAT = sys.float_info.max
 # 订单更新事件，用于注册
@@ -300,16 +289,6 @@ class SpreadTradingStrategy(BaseStrategy):
         # 以上条件都满足，调用on_tick执行策略逻辑
         self.on_tick(near_quote, far_quote)
 
-    def _check_market_opening_time(self, near_quote: Quote, far_quote: Quote) -> bool:
-        """
-        极致高性能判断：仅3步（获取纳秒戳 + 两次数值比较）
-        单次调用耗时 ≈ 20纳秒（仅time.time_ns()的系统调用开销）
-        """
-        current_ns = lazy_time.time_ns()
-        current_ns_today = current_ns % ONE_DAY_NS
-        # 直接比较纳秒戳（数值比较是CPU原生操作，无任何开销）
-        return (NS_085900 < current_ns_today < NS_085959) or (NS_205900 < current_ns_today < NS_205959)
-
     def _check_data_sync(self, near_quote: Quote, far_quote: Quote) -> bool:
         """
         检查数据同步
@@ -391,6 +370,10 @@ class SpreadTradingStrategy(BaseStrategy):
         # 获取两个klines的最新时间，如果不一致，则缝合数据
         near_kline_time = datetime.fromtimestamp(near_klines.datetime.iloc[-1] / 1e9)
         far_kline_time = datetime.fromtimestamp(far_klines.datetime.iloc[-1] / 1e9)
+        # 初始化时会出现没有数据的情况
+        if near_kline_time.year == 1970 or far_kline_time.year == 1970:
+            self.gateway.write_log(f"---klines时间未初始化完成")
+            return None
 
         # klines数据对齐的情况
         if near_kline_time == far_kline_time:
@@ -428,7 +411,7 @@ class SpreadTradingStrategy(BaseStrategy):
                 lower_bound = mean - max(self.klines_std_k * std, dynamic_spread_cost)
                 # 重新赋值
                 self.current_spread_indicator = (mean, std, upper_bound, lower_bound)
-                print_msg_with_time_third("--klines计算完成")
+                print_msg_with_time_third("--klines不一致，使用历史数据计算完成")
                 return self.current_spread_indicator
             else:
                 # 数据不存在，返回空
@@ -519,7 +502,7 @@ class SpreadTradingStrategy(BaseStrategy):
         # 卖出近月合约，买入远月合约，预期价差会回归到中轨
         if real_short_spread > upper_bound:
             # 如果是在08:59:00到08:59:59之间，就做定时任务开仓
-            if self._check_market_opening_time(near_quote, far_quote):
+            if check_market_opening_time():
             # if True:
                 self._spread_open_short_delay(near_quote, far_quote, real_short_spread)
                 self.gateway.write_log(f"开盘延时开仓: {real_short_spread} > {upper_bound}")
@@ -531,7 +514,7 @@ class SpreadTradingStrategy(BaseStrategy):
         # 做多价差：价差过低
         # 买入近月合约，卖出远月合约，预期价差会回归到中轨
         if real_long_spread < lower_bound:
-            if self._check_market_opening_time(near_quote, far_quote):
+            if check_market_opening_time():
             # if True:
                 self._spread_open_long_delay(near_quote, far_quote, real_long_spread)
                 self.gateway.write_log(f"开盘延时开仓: {real_long_spread} < {lower_bound}")
@@ -890,8 +873,8 @@ class SpreadTradingStrategy(BaseStrategy):
                     self._cancel_order(order_id_near, False)
                 if order_id_far:
                     self._cancel_order(order_id_near, False)
-                if SPREAD_POSITION in self.global_position:
-                    del self.global_position[SPREAD_POSITION]
+                # if SPREAD_POSITION in self.global_position:
+                #     del self.global_position[SPREAD_POSITION]
 
         except Exception as e:
             self.gateway.write_log(f"做空价差开仓异常: {str(e)}")
@@ -1013,8 +996,8 @@ class SpreadTradingStrategy(BaseStrategy):
                     self._cancel_order(order_id_near, False)
                 if order_id_far:
                     self._cancel_order(order_id_near, False)
-                if SPREAD_POSITION in self.global_position:
-                    del self.global_position[SPREAD_POSITION]
+                # if SPREAD_POSITION in self.global_position:
+                #     del self.global_position[SPREAD_POSITION]
 
         except Exception as e:
             self.gateway.write_log(f"做多价差开仓异常: {str(e)}")

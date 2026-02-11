@@ -14,8 +14,8 @@ from tqsdk.objs import Quote
 
 from common.vnpy_time import split_cross_day_time
 
-if TYPE_CHECKING:
-    from common.strategy_spread import SpreadTradingStrategy, BaseStrategy
+
+from common.strategy_spread import BaseStrategy, SPREAD_POSITION
 
 # 收盘前多少分钟停止交易
 CLOSE_BEFORE_MINUTE = 15
@@ -55,7 +55,7 @@ class RiskManager:
 
         Parameters
         ----------
-        strategy : SpreadTradingStrategy
+        strategy : BaseStrategy
             策略实例，用于访问策略状态、持仓、交易功能等
         """
         if not hasattr(self, "strategy"):
@@ -234,84 +234,99 @@ class RiskManager:
 
         将self.strategy.history_position的内容格式化输出到日志
         """
+
+        # 先打印当前持仓现状
+        output_lines: list[str] = [f"\n========== 当前持仓快照 =========="]
+        current_position = self.strategy.global_position[SPREAD_POSITION]
+        if current_position is None:
+            output_lines.append("    当前持仓记录为空")
+        else:
+            output_lines.extend(output_position(current_position))
+
+        # 在打印历史持仓记录
         history = self.strategy.history_position
-
-        if not history:
-            self.strategy.gateway.write_log("历史持仓记录为空")
-            return
-
-        # 构建输出字符串
-        output_lines: list[str] = []
         output_lines.append(f"========== 历史持仓记录 (共 {len(history)} 条) ==========")
+        if not history:
+            output_lines.append("    历史持仓记录为空")
+            output_lines.append("========== 历史持仓记录打印完成 ==========")
+            self.strategy.gateway.write_log("\n".join(output_lines))
+            return
 
         for idx, position in enumerate(history, 1):
             output_lines.append(f"---------- 记录 {idx} ----------")
 
-            # 打印关键字段
-            status = position.get("position_status", "N/A")
-            output_lines.append(f"  状态: {status}")
-
-            # 时间信息（一行4个）
-            time_parts: list[str] = []
-            if position.get("open_start_time"):
-                time_parts.append(f"开仓开始时间: {position.get('open_start_time')}")
-            if position.get("open_finish_time"):
-                time_parts.append(f"开仓完成时间: {position.get('open_finish_time')}")
-            if position.get("close_start_time"):
-                time_parts.append(f"平仓开始时间: {position.get('close_start_time')}")
-            if position.get("close_finish_time"):
-                time_parts.append(f"平仓完成时间: {position.get('close_finish_time')}")
-            if time_parts:
-                output_lines.append(f"  {'  '.join(time_parts)}")
-
-            # 异常相关
-            if position.get("exception_time"):
-                output_lines.append(f"  异常时间: {position.get('exception_time')}")
-
-            # 订单ID（一行4个）
-            order_id_parts: list[str] = []
-            if position.get("near_open_order_id"):
-                order_id_parts.append(f"近月开仓订单ID: {position.get('near_open_order_id')}")
-            if position.get("far_open_order_id"):
-                order_id_parts.append(f"远月开仓订单ID: {position.get('far_open_order_id')}")
-            if position.get("near_close_order_id"):
-                order_id_parts.append(f"近月平仓订单ID: {position.get('near_close_order_id')}")
-            if position.get("far_close_order_id"):
-                order_id_parts.append(f"远月平仓订单ID: {position.get('far_close_order_id')}")
-            if order_id_parts:
-                output_lines.append(f"  {'  '.join(order_id_parts)}")
-
-            # 订单状态（一行4个）
-            status_parts: list[str] = []
-            if position.get("near_open_status"):
-                status_parts.append(f"近月开仓状态: {position.get('near_open_status')}")
-            if position.get("far_open_status"):
-                status_parts.append(f"远月开仓状态: {position.get('far_open_status')}")
-            if position.get("near_close_status"):
-                status_parts.append(f"近月平仓状态: {position.get('near_close_status')}")
-            if position.get("far_close_status"):
-                status_parts.append(f"远月平仓状态: {position.get('far_close_status')}")
-            if status_parts:
-                output_lines.append(f"  {'  '.join(status_parts)}")
-
-            # 合约信息
-            if position.get("near_symbol"):
-                output_lines.append(f"  近月合约: {position.get('near_symbol')}")
-            if position.get("far_symbol"):
-                output_lines.append(f"  远月合约: {position.get('far_symbol')}")
-
-            # 价差信息
-            if position.get("open_spread") is not None:
-                output_lines.append(f"  开仓价差: {position.get('open_spread')}")
-            if position.get("close_spread") is not None:
-                output_lines.append(f"  平仓价差: {position.get('close_spread')}")
+            output_lines.extend(output_position(position))
 
         output_lines.append("========== 历史持仓记录打印完成 ==========")
 
         # 一次性输出
         self.strategy.gateway.write_log("\n".join(output_lines))
 
+def output_position(position: dict) -> list[str]:
+
+    output_lines: list[str] = []
+    # 打印关键字段
+    status = position.get("position_status", "N/A")
+    output_lines.append(f"  状态: {status}")
+
+    # 时间信息（一行4个）
+    time_parts: list[str] = []
+    if position.get("open_start_time"):
+        time_parts.append(f"开仓开始时间: {position.get('open_start_time')}")
+    if position.get("open_finish_time"):
+        time_parts.append(f"开仓完成时间: {position.get('open_finish_time')}")
+    if position.get("close_start_time"):
+        time_parts.append(f"平仓开始时间: {position.get('close_start_time')}")
+    if position.get("close_finish_time"):
+        time_parts.append(f"平仓完成时间: {position.get('close_finish_time')}")
+    if time_parts:
+        output_lines.append(f"  {'  '.join(time_parts)}")
+
+    # 异常相关
+    if position.get("exception_time"):
+        output_lines.append(f"  异常时间: {position.get('exception_time')}")
+
+    # 订单ID（一行4个）
+    order_id_parts: list[str] = []
+    if position.get("near_open_order_id"):
+        order_id_parts.append(f"近月开仓订单ID: {position.get('near_open_order_id')}")
+    if position.get("far_open_order_id"):
+        order_id_parts.append(f"远月开仓订单ID: {position.get('far_open_order_id')}")
+    if position.get("near_close_order_id"):
+        order_id_parts.append(f"近月平仓订单ID: {position.get('near_close_order_id')}")
+    if position.get("far_close_order_id"):
+        order_id_parts.append(f"远月平仓订单ID: {position.get('far_close_order_id')}")
+    if order_id_parts:
+        output_lines.append(f"  {'  '.join(order_id_parts)}")
+
+    # 订单状态（一行4个）
+    status_parts: list[str] = []
+    if position.get("near_open_status"):
+        status_parts.append(f"近月开仓状态: {position.get('near_open_status')}")
+    if position.get("far_open_status"):
+        status_parts.append(f"远月开仓状态: {position.get('far_open_status')}")
+    if position.get("near_close_status"):
+        status_parts.append(f"近月平仓状态: {position.get('near_close_status')}")
+    if position.get("far_close_status"):
+        status_parts.append(f"远月平仓状态: {position.get('far_close_status')}")
+    if status_parts:
+        output_lines.append(f"  {'  '.join(status_parts)}")
+
+    # 合约信息
+    if position.get("near_symbol"):
+        output_lines.append(f"  近月合约: {position.get('near_symbol')}")
+    if position.get("far_symbol"):
+        output_lines.append(f"  远月合约: {position.get('far_symbol')}")
+
+    # 价差信息
+    if position.get("open_spread") is not None:
+        output_lines.append(f"  开仓价差: {position.get('open_spread')}")
+    if position.get("close_spread") is not None:
+        output_lines.append(f"  平仓价差: {position.get('close_spread')}")
+
+    return output_lines
+
 if __name__ == "__main__":
     symbol_short = "ni"
-    symbol_trading_time = EXCHANGE_TRADE_TIME[symbol_short]
-    print(symbol_trading_time)
+    trading_time = EXCHANGE_TRADE_TIME[symbol_short]
+    print(trading_time)
