@@ -6,19 +6,16 @@ ONE_DAY_NS = 86400 * 10 ** 9
 # 用来卡时间的常量，用来和time.time_ns()做比较
 # 这个是当日的时间偏移量，使用时要先用ONE_DAY_NS整除
 # 注意这个是Unix时间，是没有加时区的
-# 早盘
-NS_085900 = 3540000000000
-NS_085959 = 3599900000000
-# 夜盘
-NS_205900 = 46740000000000
-NS_205959 = 46799900000000
+# 早盘，不带时区就是00:59:00,00:59:59.0
+NS_005900 = 3540000000000
+NS_005959 = 3599900000000
+# 夜盘，不带时区就是12:59:00,12:59:59.0
+NS_125900 = 46740000000000
+NS_125959 = 46799900000000
 
 
 
-
-
-
-def check_market_opening_time() -> bool:
+def check_market_opening_time_morning() -> bool:
     """
     极致高性能判断：仅3步（获取纳秒戳 + 两次数值比较）
     单次调用耗时 ≈ 20纳秒（仅time.time_ns()的系统调用开销）
@@ -26,7 +23,17 @@ def check_market_opening_time() -> bool:
     current_ns = time.time_ns()
     current_ns_today = current_ns % ONE_DAY_NS
     # 直接比较纳秒戳（数值比较是CPU原生操作，无任何开销）
-    return (NS_085900 < current_ns_today < NS_085959) or (NS_205900 < current_ns_today < NS_205959)
+    return NS_005900 < current_ns_today < NS_005959
+
+def check_market_opening_time_night() -> bool:
+    """
+    极致高性能判断：仅3步（获取纳秒戳 + 两次数值比较）
+    单次调用耗时 ≈ 20纳秒（仅time.time_ns()的系统调用开销）
+    """
+    current_ns = time.time_ns()
+    current_ns_today = current_ns % ONE_DAY_NS
+    # 直接比较纳秒戳（数值比较是CPU原生操作，无任何开销）
+    return NS_125900 < current_ns_today < NS_125959
 
 def parse_time_str_to_ns(time_str: str) -> int:
     """

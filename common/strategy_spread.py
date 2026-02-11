@@ -22,7 +22,8 @@ import pandas as pd
 from tqsdk.objs import Quote
 
 from common.func_magic import print_msg_with_time_third, print_msg_with_time_fifth
-from common.time_delay import precise_time_trigger, check_market_opening_time
+from common.time_delay import precise_time_trigger, check_market_opening_time_morning, \
+    check_market_opening_time_night
 from common.vnpy_time import get_timestamp, get_now_str, datetime_format
 from vnpy.trader.constant import Direction, Offset, Exchange, OrderType, Status
 from vnpy.trader.event import EVENT_ORDER
@@ -502,10 +503,15 @@ class SpreadTradingStrategy(BaseStrategy):
         # 卖出近月合约，买入远月合约，预期价差会回归到中轨
         if real_short_spread > upper_bound:
             # 如果是在08:59:00到08:59:59之间，就做定时任务开仓
-            if check_market_opening_time():
+            if check_market_opening_time_morning():
             # if True:
-                self._spread_open_short_delay(near_quote, far_quote, real_short_spread)
-                self.gateway.write_log(f"开盘延时开仓: {real_short_spread} > {upper_bound}")
+                self._spread_open_short_delay(near_quote, far_quote, real_short_spread,
+                                              "09:00:00.000001")
+                self.gateway.write_log(f"早盘延时开仓: {real_short_spread} > {upper_bound}")
+            elif check_market_opening_time_night():
+                self._spread_open_short_delay(near_quote, far_quote, real_short_spread,
+                                              "21:00:00.000001")
+                self.gateway.write_log(f"夜盘延时开仓: {real_short_spread} > {upper_bound}")
             else:
                 self._spread_open_short(near_quote, far_quote, real_short_spread)
                 self.gateway.write_log(f"做空价差开仓: {real_short_spread} > {upper_bound}")
@@ -514,10 +520,15 @@ class SpreadTradingStrategy(BaseStrategy):
         # 做多价差：价差过低
         # 买入近月合约，卖出远月合约，预期价差会回归到中轨
         if real_long_spread < lower_bound:
-            if check_market_opening_time():
+            if check_market_opening_time_morning():
             # if True:
-                self._spread_open_long_delay(near_quote, far_quote, real_long_spread)
-                self.gateway.write_log(f"开盘延时开仓: {real_long_spread} < {lower_bound}")
+                self._spread_open_long_delay(near_quote, far_quote, real_long_spread,
+                                             "09:00:00.000001")
+                self.gateway.write_log(f"早盘延时开仓: {real_long_spread} < {lower_bound}")
+            elif check_market_opening_time_night():
+                self._spread_open_long_delay(near_quote, far_quote, real_long_spread,
+                                             "21:00:00.000001")
+                self.gateway.write_log(f"夜盘延时开仓: {real_long_spread} < {lower_bound}")
             else:
                 self._spread_open_long(near_quote, far_quote, real_long_spread)
                 self.gateway.write_log(f"做多价差开仓: {real_long_spread} < {lower_bound}")
@@ -747,16 +758,17 @@ class SpreadTradingStrategy(BaseStrategy):
             self.gateway.write_log(f"发送平多差仓订单异常: {str(e)}")
 
     def _spread_open_short_delay(self, near_quote: Quote, far_quote: Quote, spread: float,
-                           specified_near_price:float = None, specified_far_price:float = None) -> None:
-        precise_time_trigger(target_time_str="09:00:00.000001",  # 目标时间：9点整1微秒
+                           delay_time_str:str) -> None:
+        precise_time_trigger(target_time_str=delay_time_str,  # 目标时间：9点整1微秒
                 callback=self._spread_open_short,
                 near_quote=near_quote, far_quote=far_quote, spread=spread)
 
     def _spread_open_long_delay(self, near_quote: Quote, far_quote: Quote, spread: float,
-                           specified_near_price:float = None, specified_far_price:float = None) -> None:
-        precise_time_trigger(target_time_str="09:00:00.000001",  # 目标时间：9点整1微秒
+                           delay_time_str:str) -> None:
+        precise_time_trigger(target_time_str=delay_time_str,  # 目标时间：9点整1微秒
                 callback=self._spread_open_long,
                 near_quote=near_quote, far_quote=far_quote, spread=spread)
+
 
     def _spread_open_short(self, near_quote: Quote, far_quote: Quote, spread: float,
                            specified_near_price:float = None, specified_far_price:float = None) -> None:
