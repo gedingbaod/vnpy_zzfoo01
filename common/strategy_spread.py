@@ -26,8 +26,8 @@ from common.time_delay import precise_time_trigger, check_market_opening_time_mo
     check_market_opening_time_night
 from common.vnpy_time import get_timestamp, get_now_str, datetime_format
 from vnpy.trader.constant import Direction, Offset, Exchange, OrderType, Status
-from vnpy.trader.event import EVENT_ORDER
-from vnpy.trader.object import OrderRequest, CancelRequest, SubscribeRequest, PositionData, OrderData
+from vnpy.trader.event import EVENT_ORDER, EVENT_TRADE
+from vnpy.trader.object import OrderRequest, CancelRequest, SubscribeRequest, PositionData, OrderData, TradeData
 from vnpy.event import Event
 
 if TYPE_CHECKING:
@@ -128,6 +128,12 @@ class BaseStrategy(ABC):
     def init_Base_Event(self) -> None:
         """注册回调事件"""
         self.gateway.event_engine.register(EVENT_ORDER, self.process_order_event)
+        self.gateway.event_engine.register(EVENT_TRADE, self.process_trade_event)
+
+    def process_trade_event(self, event: Event) -> None:
+        """处理委托事件"""
+        trade: TradeData = event.data
+        self.on_trade_status_update(trade)
 
     def process_order_event(self, event: Event) -> None:
         """处理委托事件"""
@@ -224,6 +230,8 @@ class SpreadTradingStrategy(BaseStrategy):
         self.init_position()
 
     def init_position(self):
+        # 清空仓位数据，也就是初始化
+        self.clear_position_data()
         self.spread_position[POSITION_STATUS] = PositionStatus.CLOSED
 
     def init_Event(self) -> None:
@@ -315,29 +323,30 @@ class SpreadTradingStrategy(BaseStrategy):
 
             # 关键：带精度容错判断是否为0.5秒（避免浮点数精度问题）
             # _check_data_sync开仓可以差0.6秒，平仓必须时间相等
-            if self.spread_position[POSITION_STATUS] == PositionStatus.OPENED:
-                check_time_delta = timedelta(milliseconds=100)
-            else:
-                check_time_delta = timedelta(milliseconds=600)
+            # 这里每次更新都会跑到，所以不同步已经是常规的情况，所以不在打印日志，严格要求两个quote时间同步
+            # if self.spread_position[POSITION_STATUS] == PositionStatus.OPENED:
+            check_time_delta = timedelta(milliseconds=100)
+            # else:
+            #     check_time_delta = timedelta(milliseconds=600)
             # 差值就是delta
             if abs(near_time - far_time) > check_time_delta:
                 # 要求时间戳同步（允许0.5秒误差）
-                start_time_str = get_now_str()
-                self.gateway.write_log(f"TQSDK行情时间不同步，"
-                        f"near_time: {near_time}"
-                        f"{'.' if near_time.microsecond == 0 else ''}{near_time.microsecond if near_time.microsecond == 0 else ''}，"
-                        f"far_time:{far_time}"
-                        f"{'.' if far_time.microsecond == 0 else ''}{far_time.microsecond if far_time.microsecond == 0 else ''}，"
-                        f"时间{start_time_str}")
+                # start_time_str = get_now_str()
+                # self.gateway.write_log(f"Quote时间不同步，"
+                #         f"near_time: {near_time}"
+                #         f"{'.' if near_time.microsecond == 0 else ''}{near_time.microsecond if near_time.microsecond == 0 else ''}，"
+                #         f"far_time:{far_time}"
+                #         f"{'.' if far_time.microsecond == 0 else ''}{far_time.microsecond if far_time.microsecond == 0 else ''}，"
+                #         f"时间{start_time_str}")
                 return False
 
             # 要求两个合约是否都有价格数据
             if math.isnan(near_quote.last_price) or math.isnan(far_quote.last_price):
                 start_time_str = get_now_str()
-                self.gateway.write_log(f"TQSDK行情没有价格数据，时间{start_time_str}")
+                self.gateway.write_log(f"Quote行情没有价格数据，时间{start_time_str}")
                 return False
         except Exception as e:
-            self.gateway.write_log(f"检查数据同步异常: {str(e)}")
+            self.gateway.write_log(f"_check_data_sync发生异常: {str(e)}")
             return False
 
         return True
@@ -461,7 +470,7 @@ class SpreadTradingStrategy(BaseStrategy):
                 return
             elif self.spread_position[POSITION_STATUS] is PositionStatus.OPENED:
                 # 如果已全部成交，持仓检查平仓机会
-                self._find_close_opportunity(real_short_spread, real_long_spread, near_quote, far_quote)
+                self._find_close_opportunity(near_quote, far_quote)
             elif self.spread_position[POSITION_STATUS] is PositionStatus.EXCEPTION:
                 pass
             else:
@@ -511,15 +520,13 @@ class SpreadTradingStrategy(BaseStrategy):
             # 如果是在08:59:00到08:59:59之间，就做定时任务开仓
             if check_market_opening_time_morning():
             # if True:
-                self._spread_open_short_delay(near_quote, far_quote, real_short_spread,
-                                              "09:00:00.000001")
+                self._spread_open_short_delay(near_quote,far_quote,"09:00:00.000001")
                 self.gateway.write_log(f"早盘延时开仓: {real_short_spread} > {upper_bound}")
             elif check_market_opening_time_night():
-                self._spread_open_short_delay(near_quote, far_quote, real_short_spread,
-                                              "21:00:00.000001")
+                self._spread_open_short_delay(near_quote,far_quote,"21:00:00.000001")
                 self.gateway.write_log(f"夜盘延时开仓: {real_short_spread} > {upper_bound}")
             else:
-                self._spread_open_short(near_quote, far_quote, real_short_spread)
+                self._spread_open_short(near_quote, far_quote)
                 self.gateway.write_log(f"做空价差开仓: {real_short_spread} > {upper_bound}")
             return
 
@@ -528,15 +535,13 @@ class SpreadTradingStrategy(BaseStrategy):
         if real_long_spread < lower_bound:
             if check_market_opening_time_morning():
             # if True:
-                self._spread_open_long_delay(near_quote, far_quote, real_long_spread,
-                                             "09:00:00.000001")
+                self._spread_open_long_delay(near_quote,far_quote,"09:00:00.000001")
                 self.gateway.write_log(f"早盘延时开仓: {real_long_spread} < {lower_bound}")
             elif check_market_opening_time_night():
-                self._spread_open_long_delay(near_quote, far_quote, real_long_spread,
-                                             "21:00:00.000001")
+                self._spread_open_long_delay(near_quote,far_quote,"21:00:00.000001")
                 self.gateway.write_log(f"夜盘延时开仓: {real_long_spread} < {lower_bound}")
             else:
-                self._spread_open_long(near_quote, far_quote, real_long_spread)
+                self._spread_open_long(near_quote, far_quote)
                 self.gateway.write_log(f"做多价差开仓: {real_long_spread} < {lower_bound}")
             return
 
@@ -674,15 +679,24 @@ class SpreadTradingStrategy(BaseStrategy):
                     "pair_order_id": near_close_order_id  # 配对订单ID
                 }
                 # 更新持仓状态
-                self.spread_position["close_start_time"] = get_now_str()
-                self.spread_position["close_send_spread"] = near_quote.ask_price1 - far_quote.bid_price1
-                self.spread_position[POSITION_STATUS] = PositionStatus.CLOSING
-                self.spread_position["near_close_order_id"] = near_close_order_id
-                self.spread_position["far_close_order_id"] = far_close_order_id
-                self.spread_position["near_close_status"] = Status.SUBMITTING
-                self.spread_position["far_close_status"] = Status.SUBMITTING
-                self.spread_position["near_close_price1"] = near_quote.ask_price1
-                self.spread_position["far_close_price1"] = far_quote.bid_price1
+                self.spread_position.update({
+                    POSITION_STATUS: PositionStatus.CLOSING,
+                    "close_start_time": get_now_str(),
+                    "close_send_spread": near_quote.ask_price1 - far_quote.bid_price1,
+                    "near_close_order_id": near_close_order_id,
+                    "far_close_order_id": far_close_order_id,
+                    "near_close_price1": near_quote.ask_price1,
+                    "far_close_price1": far_quote.bid_price1,
+                })
+                # self.spread_position["close_start_time"] = get_now_str()
+                # self.spread_position["close_send_spread"] = near_quote.ask_price1 - far_quote.bid_price1
+                # self.spread_position[POSITION_STATUS] = PositionStatus.CLOSING
+                # self.spread_position["near_close_order_id"] = near_close_order_id
+                # self.spread_position["far_close_order_id"] = far_close_order_id
+                # self.spread_position["near_close_status"] = Status.SUBMITTING
+                # self.spread_position["far_close_status"] = Status.SUBMITTING
+                # self.spread_position["near_close_price1"] = near_quote.ask_price1
+                # self.spread_position["far_close_price1"] = far_quote.bid_price1
 
 
                 self.gateway.write_log(f"平空差订单已发送:\n"
@@ -755,15 +769,24 @@ class SpreadTradingStrategy(BaseStrategy):
                     "pair_order_id": near_close_order_id  # 配对订单ID
                 }
                 # 更新持仓状态
-                self.spread_position["close_start_time"] = get_now_str()
-                self.spread_position["close_send_spread"] = near_quote.bid_price1 - far_quote.ask_price1
-                self.spread_position[POSITION_STATUS] = PositionStatus.CLOSING
-                self.spread_position["near_close_order_id"] = near_close_order_id
-                self.spread_position["far_close_order_id"] = far_close_order_id
-                self.spread_position["near_close_status"] = Status.SUBMITTING
-                self.spread_position["far_close_status"] = Status.SUBMITTING
-                self.spread_position["near_close_price1"] = near_quote.bid_price1
-                self.spread_position["far_close_price1"] = far_quote.ask_price1
+                self.spread_position.update({
+                    POSITION_STATUS: PositionStatus.CLOSING,
+                    "close_start_time": get_now_str(),
+                    "close_send_spread": near_quote.bid_price1 - far_quote.ask_price1,
+                    "near_close_order_id": near_close_order_id,
+                    "far_close_order_id": far_close_order_id,
+                    "near_close_price1": near_quote.bid_price1,
+                    "far_close_price1": far_quote.ask_price1,
+                })
+                # self.spread_position["close_start_time"] = get_now_str()
+                # self.spread_position["close_send_spread"] = near_quote.bid_price1 - far_quote.ask_price1
+                # self.spread_position[POSITION_STATUS] = PositionStatus.CLOSING
+                # self.spread_position["near_close_order_id"] = near_close_order_id
+                # self.spread_position["far_close_order_id"] = far_close_order_id
+                # self.spread_position["near_close_status"] = Status.SUBMITTING
+                # self.spread_position["far_close_status"] = Status.SUBMITTING
+                # self.spread_position["near_close_price1"] = near_quote.bid_price1
+                # self.spread_position["far_close_price1"] = far_quote.ask_price1
 
                 self.gateway.write_log(f"平多差订单已发送:\n"
                     f"near_close_order: {near_close_order_id} near_close_bid_price1: {near_quote.bid_price1}\n"
@@ -774,21 +797,18 @@ class SpreadTradingStrategy(BaseStrategy):
         except Exception as e:
             self.gateway.write_log(f"发送平多差仓订单异常: {str(e)}")
 
-    def _spread_open_short_delay(self, near_quote: Quote, far_quote: Quote, spread: float,
-                           delay_time_str:str) -> None:
-        precise_time_trigger(target_time_str=delay_time_str,  # 目标时间：9点整1微秒
+    def _spread_open_short_delay(self, near_quote: Quote, far_quote: Quote, delay_time_str:str) -> None:
+        precise_time_trigger(target_time_str=delay_time_str,  # 目标时间
                 callback=self._spread_open_short,
-                near_quote=near_quote, far_quote=far_quote, spread=spread)
+                near_quote=near_quote, far_quote=far_quote)
 
-    def _spread_open_long_delay(self, near_quote: Quote, far_quote: Quote, spread: float,
-                           delay_time_str:str) -> None:
-        precise_time_trigger(target_time_str=delay_time_str,  # 目标时间：9点整1微秒
+    def _spread_open_long_delay(self, near_quote: Quote, far_quote: Quote, delay_time_str:str) -> None:
+        precise_time_trigger(target_time_str=delay_time_str,  # 目标时间
                 callback=self._spread_open_long,
-                near_quote=near_quote, far_quote=far_quote, spread=spread)
+                near_quote=near_quote, far_quote=far_quote)
 
-
-    def _spread_open_short(self, near_quote: Quote, far_quote: Quote, spread: float,
-                           specified_near_price:float = None, specified_far_price:float = None) -> None:
+    def _spread_open_short(self, near_quote: Quote, far_quote: Quote,
+            specified_near_price:float = None, specified_far_price:float = None) -> None:
         """
         开做空价差（卖近买远）
 
@@ -866,32 +886,22 @@ class SpreadTradingStrategy(BaseStrategy):
 
                 # 暂时记录持仓（实际要等订单成交，通过near_open_status和far_open_status）
                 # 这样在订单状态更新时可以更新这些标志
+                self.clear_position_data()
                 self.spread_position.update({
                     POSITION_STATUS: PositionStatus.OPENING,
                     SPREAD_POSITION_TYPE: SPREAD_POSITION_TYPE_SHORT,  # 持仓类型
-                    "open_send_spread": spread,        # 开仓时的价差
+                    "open_send_spread": near_quote.bid_price1 - far_quote.ask_price1,        # 开仓时的价差
                     "open_start_time": get_now_str(),  # 开仓时间
                     "near_symbol": self.near_symbol,
-                    "near_open_order_id": order_id_near,  # 近月订单ID
-                    "near_open_price1": near_quote.bid_price1,  # 记录买1价
-                    "near_open_status": Status.SUBMITTING,
-                    "near_volume": 1,
-                    "near_yd_volume": 0,  # 新开仓都是今仓，昨仓为0
                     "far_symbol": self.far_symbol,
+                    "near_open_order_id": order_id_near,  # 近月订单ID
                     "far_open_order_id": order_id_far,    # 远月订单ID
+                    "near_open_price1": near_quote.bid_price1,  # 开仓发送价格
                     "far_open_price1": far_quote.ask_price1,  # 记录卖1价
-                    "far_open_status": Status.SUBMITTING,
-                    "far_volume": 1,
-                    "far_yd_volume": 0,     # 新开仓都是今仓，昨仓为0
+                    "near_volume": self.transaction_volume,
+                    "far_volume": self.transaction_volume,
                 })
-                self.spread_position["near_close_order_id"] = None
-                self.spread_position["far_close_order_id"] = None
-                self.spread_position["near_close_status"] = None
-                self.spread_position["far_close_status"] = None
-                self.spread_position["near_close_price1"] = None
-                self.spread_position["far_close_price1"] = None
-                self.spread_position["close_start_time"] = None
-                self.spread_position["close_finish_time"] = None
+
                 self.gateway.write_log(f"做空价差开仓订单已发送:\n"
                     f"  near_open_order: {order_id_near}, near_open_bid_price1: {near_quote.bid_price1},"
                     f" far_open_order: {order_id_far}, far_open_ask_price1: {far_quote.ask_price1} ")
@@ -908,8 +918,8 @@ class SpreadTradingStrategy(BaseStrategy):
         except Exception as e:
             self.gateway.write_log(f"做空价差开仓异常: {str(e)}")
 
-    def _spread_open_long(self, near_quote: Quote, far_quote: Quote, spread: float,
-                          specified_near_price:float = None, specified_far_price:float = None) -> None:
+    def _spread_open_long(self, near_quote: Quote, far_quote: Quote,
+            specified_near_price:float = None, specified_far_price:float = None) -> None:
         """
         开做多价差（买近卖远）
 
@@ -989,32 +999,21 @@ class SpreadTradingStrategy(BaseStrategy):
                 }
 
                 # 动态记录持仓
+                self.clear_position_data()
                 self.spread_position.update({
                     POSITION_STATUS: PositionStatus.OPENING,
                     SPREAD_POSITION_TYPE: SPREAD_POSITION_TYPE_LONG,  # 持仓类型
-                    "open_send_spread": spread,        # 开仓时的价差
+                    "open_send_spread": near_quote.ask_price1 - far_quote.bid_price1,        # 开仓时的价差
                     "open_start_time": get_now_str(),  # 开仓时间
                     "near_symbol": self.near_symbol,
-                    "near_open_order_id": order_id_near,  # 近月订单ID
-                    "near_open_price1": near_quote.ask_price1,  # 记录卖1价
-                    "near_open_status": Status.SUBMITTING,
-                    "near_volume": 1,
-                    "near_yd_volume": 0,  # 新开仓都是今仓，昨仓为0
                     "far_symbol": self.far_symbol,
-                    "far_open_order_id": order_id_far,    # 远月订单ID
+                    "near_open_order_id": order_id_near,  # 近月订单ID
+                    "far_open_order_id": order_id_far,  # 远月订单ID
+                    "near_open_price1": near_quote.ask_price1,  # 记录卖1价
                     "far_open_price1": far_quote.bid_price1,  # 记录买1价
-                    "far_open_status": Status.SUBMITTING,
-                    "far_volume": 1,
-                    "far_yd_volume": 0     # 新开仓都是今仓，昨仓为0
+                    "near_volume": self.transaction_volume,
+                    "far_volume": self.transaction_volume,
                 })
-                self.spread_position["near_close_order_id"] = None
-                self.spread_position["far_close_order_id"] = None
-                self.spread_position["near_close_status"] = None
-                self.spread_position["far_close_status"] = None
-                self.spread_position["near_close_price1"] = None
-                self.spread_position["far_close_price1"] = None
-                self.spread_position["close_start_time"] = None
-                self.spread_position["close_finish_time"] = None
                 self.gateway.write_log(f"做多价差开仓订单已发送:\n"
                     f"  near_open_order: {order_id_near}, near_open_ask_price1: {near_quote.ask_price1},"
                     f" far_open_order: {order_id_far}, far_open_bid_price1: {far_quote.bid_price1} ")
@@ -1030,6 +1029,70 @@ class SpreadTradingStrategy(BaseStrategy):
 
         except Exception as e:
             self.gateway.write_log(f"做多价差开仓异常: {str(e)}")
+
+    def on_trade_status_update(self, trade: TradeData) -> None:
+        # TradeData由gateway里的onRtnOrder封装出来
+        # 启动时，这里会更新当日的所有成交信息
+        try:
+            self.gateway.write_log(trade)
+            vt_orderid: str = trade.vt_orderid
+            price: float = trade.price
+
+            position = self.spread_position
+            is_open_set = False
+            is_close_set = False
+            is_h_close_set = False
+            if vt_orderid == position["near_open_order_id"]:
+                position["near_open_price"] = trade.price
+                print(f'near_open_price: {position["near_open_price"]}')
+                is_open_set = True
+            elif vt_orderid == position["far_open_order_id"]:
+                position["far_open_price"] = trade.price
+                print(f'far_open_price: {position["far_open_price"]}')
+                is_open_set = True
+            elif vt_orderid == position["near_close_order_id"]:
+                position["near_close_price"] = trade.price
+                print(f'near_close_price: {position["near_close_price"]}')
+                is_close_set = True
+            elif vt_orderid == position["far_close_order_id"]:
+                position["far_close_price"] = trade.price
+                print(f'far_close_price: {position["far_close_price"]}')
+                is_close_set = True
+
+            # 如果现有仓位找不到，就到历史仓位的最后一条去找
+            # 因为如果是平仓，数据可能就移动到历史仓位了
+            if not is_open_set and not is_close_set and len(self.history_position) > 0:
+                h_position = self.history_position[-1]
+                if vt_orderid == h_position.get("near_close_order_id"):
+                    h_position["near_close_price"] = trade.price
+                    print(f'h near_close_price: {h_position["near_close_price"]}')
+                    is_h_close_set = True
+                elif vt_orderid == h_position.get("far_close_order_id"):
+                    h_position["far_close_price"] = trade.price
+                    print(f'h far_close_price: {h_position["far_close_price"]}')
+                    is_h_close_set = True
+
+            if is_open_set and (position.get("near_open_price") is not None) \
+                    and (position.get("far_open_price") is not None):
+                position["open_real_spread"] = position["near_open_price"] - position["far_open_price"]
+                print(f'open_real_spread: {position["open_real_spread"]}')
+            if is_close_set and (position.get("near_close_price") is not None) \
+                    and (position.get("far_close_price") is not None):
+                position["close_real_spread"] = position["near_close_price"] - position["far_close_price"]
+                print(f'close_real_spread: {position["close_real_spread"]}')
+            elif is_h_close_set and (h_position.get("near_close_price") is not None) \
+                    and (h_position.get("far_close_price") is not None):
+                h_position["close_real_spread"] = h_position["near_close_price"] - h_position["far_close_price"]
+                print(f'h close_real_spread: {h_position["close_real_spread"]}')
+
+
+            if not is_open_set and not is_close_set and not is_h_close_set:
+                time_str = get_now_str()
+                self.gateway.write_log(f"什么都没有找到 at {time_str}")
+        except Exception as e:
+            self.gateway.write_log(f"订单状态更新异常: {str(e)}")
+            import traceback
+            traceback.print_exc()
 
     def on_order_status_update(self, order: OrderData) -> None:
         """
@@ -1081,14 +1144,14 @@ class SpreadTradingStrategy(BaseStrategy):
                     if position.get("near_open_order_id") == vt_orderid:
                         # 近月订单开仓成交
                         position["near_open_status"] = status
-                        position["near_open_price"] = order.price
+                        # position["near_open_price"] = order.price
                         is_update = True
                         self.gateway.write_log(
                             f"价差订单：{vt_orderid}，近期合约{order.symbol}，以价格 {order.price} 开仓完成：{order.offset}")
                     elif position.get("far_open_order_id") == vt_orderid:
                         # 远月订单开仓成交
                         position["far_open_status"] = status
-                        position["far_open_price"] = order.price
+                        # position["far_open_price"] = order.price
                         is_update = True
                         self.gateway.write_log(
                             f"价差订单：{vt_orderid}，远期合约：{order.symbol}，以价格 {order.price} 开仓完成：{order.offset}")
@@ -1104,8 +1167,6 @@ class SpreadTradingStrategy(BaseStrategy):
                         self.gateway.write_log(f"价差订单对：=={self.near_symbol} {self.far_symbol}== 开仓完成")
                         self.spread_position[POSITION_STATUS] = PositionStatus.OPENED
                         self.spread_position["open_finish_time"] = get_now_str()
-                        self.spread_position["open_real_spread"] = (
-                                self.spread_position["near_open_price"] - self.spread_position["far_open_price"])
                     elif (position.get("near_open_status") in [Status.REJECTED, Status.CANCELLED]
                         and position.get("far_open_status") == Status.ALLTRADED ):
                         self.spread_position["open_finish_time"] = get_now_str()
@@ -1121,14 +1182,14 @@ class SpreadTradingStrategy(BaseStrategy):
                     if position.get("near_close_order_id","") == vt_orderid:
                         # 远月订单平仓成交
                         position["near_close_status"] = status
-                        position["near_close_price"] = order.price
+                        # position["near_close_price"] = order.price
                         is_update = True
                         self.gateway.write_log(
                             f"价差订单：{vt_orderid}，近期合约：{order.symbol}，以价格{order.price} 平仓完成:{order.offset}")
                     elif position.get("far_close_order_id", "") == vt_orderid:
                         # 远月订单开仓成交
                         position["far_close_status"] = status
-                        position["far_close_price"] = order.price
+                        # position["far_close_price"] = order.price
                         is_update = True
                         self.gateway.write_log(
                             f"价差订单：{vt_orderid}，远期合约：{order.symbol}，以价格{order.price} 平仓完成：{order.offset}")
@@ -1144,8 +1205,6 @@ class SpreadTradingStrategy(BaseStrategy):
                         self.spread_position["close_finish_time"] = get_now_str()  # 平仓时间
                         self.gateway.write_log(f"价差订单对：=={self.near_symbol} {self.far_symbol}== 平仓完成")
                         self.spread_position[POSITION_STATUS] = PositionStatus.CLOSED
-                        self.spread_position["close_real_spread"] = (
-                                self.spread_position["near_close_price"] - self.spread_position["far_close_price"])
                         item_position = copy.deepcopy(self.spread_position)
                         self.history_position.append(item_position)
                         # 平仓后，并且数据存入历史数据，就可以清空仓位数据
@@ -1255,40 +1314,34 @@ class SpreadTradingStrategy(BaseStrategy):
             "near_close_order_id": None, # 近月平仓订单ID
             "far_close_order_id": None,  # 远月平仓订单ID
 
-            "near_open_status": None,   # 近月开仓状态
-            "far_open_status": None,    # 远月开仓状态
-            "near_close_status": None,  # 近月平仓状态
-            "far_close_status": None,   # 远月平仓状态
+            "near_open_status": None,    # 近月开仓状态
+            "far_open_status": None,     # 远月开仓状态
+            "near_close_status": None,   # 近月平仓状态
+            "far_close_status": None,    # 远月平仓状态
 
-            # "near_symbol": self.near_symbol,
-            # "far_symbol": self.far_symbol,
+            "near_symbol": None,
+            "far_symbol": None,
 
-            "near_open_price1": None,   # 近月开仓发送价格
-            "far_open_price1": None,    # 远月开仓发送价格
-            "near_close_price1": None,  # 近月平仓发送价格
-            "far_close_price1": None,   # 远月平仓发送价格
+            "near_open_price1": None,    # 近月开仓发送价格，开仓时填入
+            "far_open_price1": None,     # 远月开仓发送价格，开仓时填入
+            "near_close_price1": None,   # 近月平仓发送价格，平仓时填入
+            "far_close_price1": None,    # 远月平仓发送价格，平仓时填入
 
-            "near_volume": 0,         # 近月开仓手数
-            "near_yd_volume": 0,      # 新开仓都是今仓，昨仓为0
-            "far_volume": 0,             # 远月开仓手数
+            "near_volume": 0,           # 近月开仓手数，开仓时填入
+            "near_yd_volume": 0,        # 新开仓都是今仓，昨仓为0
+            "far_volume": 0,             # 远月开仓手数，开仓时填入
             "far_yd_volume": 0,          # 新开仓都是今仓，昨仓为0
 
             "open_send_spread": None,    # 开仓发送价差，由near_open_price1、far_open_price1计算得出
             "open_real_spread": None,    # 开仓成交价差，由near_open_price、far_open_price计算得出
             "close_send_spread": None,   # 平仓发送价差，由near_close_price1、far_close_price1计算得出
             "close_real_spread": None,   # 平仓成交价差，由near_close_price、far_close_price计算得出
-            "near_open_price": None,     # 近月开仓实际成交价格
-            "far_open_price": None,      # 远月开仓实际成交价格
-            "near_close_price": None,    # 近月平仓实际成交价格
-            "far_close_price": None,     # 远月平仓实际成交价格
-
-
-
-
-
-
-
+            "near_open_price": None,     # 近月开仓实际成交价格，在on_trade_status_update中填入
+            "far_open_price": None,      # 远月开仓实际成交价格，在on_trade_status_update中填入
+            "near_close_price": None,    # 近月平仓实际成交价格，在on_trade_status_update中填入
+            "far_close_price": None,     # 远月平仓实际成交价格，在on_trade_status_update中填入
         })
+
     def on_order_exception(self, event: Event) -> None:
         error_event_data: dict = event.data
         data: dict = error_event_data[0]
@@ -1531,23 +1584,23 @@ class SpreadTradingStrategy(BaseStrategy):
                     # 平near空头
                     near_close_order_id = self._send_emergency_close_order(self.near_symbol, Direction.LONG)
                     self.spread_position["near_close_order_id"] = near_close_order_id
-                    self.spread_position["near_close_status"] = Status.SUBMITTING
+                    # self.spread_position["near_close_status"] = Status.SUBMITTING
                 else:
                     # 平far多头
                     far_close_order_id = self._send_emergency_close_order(self.far_symbol, Direction.SHORT)
                     self.spread_position["far_close_order_id"] = far_close_order_id
-                    self.spread_position["far_close_status"] = Status.SUBMITTING
+                    # self.spread_position["far_close_status"] = Status.SUBMITTING
             elif position_type == SPREAD_POSITION_TYPE_LONG:
                 if leg == "near":
                     # 平near多头
                     near_close_order_id = self._send_emergency_close_order(self.near_symbol, Direction.SHORT)
                     self.spread_position["near_close_order_id"] = near_close_order_id
-                    self.spread_position["near_close_status"] = Status.SUBMITTING
+                    # self.spread_position["near_close_status"] = Status.SUBMITTING
                 else:
                     # 平far空头
                     far_close_order_id = self._send_emergency_close_order(self.far_symbol, Direction.LONG)
                     self.spread_position["far_close_order_id"] = far_close_order_id
-                    self.spread_position["far_close_status"] = Status.SUBMITTING
+                    # self.spread_position["far_close_status"] = Status.SUBMITTING
 
             self._exception_process()
 
@@ -1618,14 +1671,12 @@ class SpreadTradingStrategy(BaseStrategy):
             order_id = self.gateway.send_order(req)
             self.gateway.write_log(f"紧急平仓订单已发送: {symbol} {direction.value} {order_id} {close_price}")
             # 更新持仓状态
-            # self.spread_position[POSITION_STATUS] = PositionStatus.CLOSING
+            self.spread_position[POSITION_STATUS] = PositionStatus.CLOSING
             # self.spread_position["near_close_order_id"] = near_close_order_id
             # self.spread_position["far_close_order_id"] = far_close_order_id
-            # self.spread_position["near_close_status"] = Status.SUBMITTING
-            # self.spread_position["far_close_status"] = Status.SUBMITTING
             # self.spread_position["near_close_price1"] = near_quote.ask_price1
             # self.spread_position["far_close_price1"] = far_quote.bid_price1
-            # self.spread_position["close_start_time"] = get_now_str()
+            self.spread_position["close_start_time"] = get_now_str()
 
             return order_id
         except Exception as e:
@@ -1676,17 +1727,13 @@ class SpreadTradingStrategy(BaseStrategy):
         self.gateway.write_log('---------------------进入开仓测试任务-----------------------')
         near_quote = self.spread_quotes[0]
         far_quote = self.spread_quotes[1]
-        real_short_spread = near_quote.bid_price1 - far_quote.ask_price1
-        real_long_spread = near_quote.ask_price1 - far_quote.bid_price1
-        # self._spread_open_short(near_quote, far_quote, real_short_spread)
-        self._spread_open_long(near_quote, far_quote, real_long_spread, specified_near_price=1.0)
+        self._spread_open_long(near_quote, far_quote)
         self.gateway.write_log('---------------------开仓测试任务结束-----------------------')
 
     def test_func_close(self, event: Event):
         self.gateway.write_log('---------------------进入平仓测试任务-----------------------')
         near_quote = self.spread_quotes[0]
         far_quote = self.spread_quotes[1]
-        # self._spread_close_short(near_quote, far_quote)
         self._spread_close_long(near_quote, far_quote)
         self.gateway.write_log('---------------------平仓测试任务结束-----------------------')
 
@@ -1703,32 +1750,30 @@ class SpreadTradingStrategy(BaseStrategy):
         self.gateway.write_log('---------------------进入完整测试任务-----------------------')
         near_quote = self.spread_quotes[0]
         far_quote = self.spread_quotes[1]
-        real_short_spread = near_quote.bid_price1 - far_quote.ask_price1
-        real_long_spread = near_quote.ask_price1 - far_quote.bid_price1
 
         # 开空差
-        self._spread_open_short(near_quote, far_quote, real_short_spread)
+        self._spread_open_short(near_quote, far_quote)
         lazy_time.sleep(10)
         # 平空差
         self._spread_close_short(near_quote, far_quote)
         lazy_time.sleep(10)
         # 开多差
-        self._spread_open_long(near_quote, far_quote, real_long_spread)
+        self._spread_open_long(near_quote, far_quote)
         lazy_time.sleep(10)
         # 平多差
         self._spread_close_long(near_quote, far_quote)
         lazy_time.sleep(10)
         # 空差近月 异常处理
-        self._spread_open_short(near_quote, far_quote, real_short_spread, specified_near_price=1.0)
+        self._spread_open_short(near_quote, far_quote, specified_near_price=1.0)
         lazy_time.sleep(10)
         # 空差远月 异常处理
-        self._spread_open_short(near_quote, far_quote, real_short_spread, specified_far_price=1.0)
+        self._spread_open_short(near_quote, far_quote, specified_far_price=1.0)
         lazy_time.sleep(10)
         # 多差近月 异常处理
-        self._spread_open_long(near_quote, far_quote, real_long_spread, specified_near_price=1.0)
+        self._spread_open_long(near_quote, far_quote, specified_near_price=1.0)
         lazy_time.sleep(10)
         # 空差远月 异常处理
-        self._spread_open_long(near_quote, far_quote, real_short_spread, specified_far_price=1.0)
+        self._spread_open_long(near_quote, far_quote, specified_far_price=1.0)
 
 
         self.gateway.write_log('---------------------完整测试任务结束-----------------------')

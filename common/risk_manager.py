@@ -26,6 +26,9 @@ EXCHANGE_TRADE_TIME: dict[str, dict] = {
     "sn": {"day": [["09:00:00", "10:15:00"], ["10:30:00", "11:30:00"], ["13:30:00", "15:00:00"]], "night": [["21:00:00", "25:00:00"]]},
 }
 
+# 打印历史事件
+EVENT_PRINT_HISTORY = 'ePrintHistory'
+
 class RiskManager:
     """
     风险管理类
@@ -65,6 +68,7 @@ class RiskManager:
             self.active: bool = True  # 风险管理线程是否激活
             # 用于打断wait()等待，使线程能快速退出
             self.interrupt_event = threading.Event()
+            self.strategy.gateway.event_engine.register(EVENT_PRINT_HISTORY, self.callback_priprint_history_position)
 
     def start(self) -> None:
         """
@@ -229,6 +233,9 @@ class RiskManager:
             self.strategy.gateway.write_log(f"检查涨跌停异常: {str(e)}")
             return False
 
+    def callback_priprint_history_position(self, event: Event):
+        self.print_history_position()
+
     def print_history_position(self) -> None:
         """
         打印历史持仓记录
@@ -320,6 +327,45 @@ def output_position(position: dict, is_current = False) -> list[str]:
     if position.get("far_symbol"):
         output_lines.append(f"  远月合约: {position.get('far_symbol')}")
 
+    # 手数信息（一行4个）
+    volume_parts: list[str] = []
+    if position.get("near_volume") is not None:
+        volume_parts.append(f"近月开仓手数: {position.get('near_volume')}")
+    if position.get("near_yd_volume") is not None:
+        volume_parts.append(f"近月昨仓手数: {position.get('near_yd_volume')}")
+    if position.get("far_volume") is not None:
+        volume_parts.append(f"远月开仓手数: {position.get('far_volume')}")
+    if position.get("far_yd_volume") is not None:
+        volume_parts.append(f"远月昨仓手数: {position.get('far_yd_volume')}")
+    if volume_parts:
+        output_lines.append(f"  {'  '.join(volume_parts)}")
+
+    # 开仓价格信息
+    open_price_parts: list[str] = []
+    if position.get("near_open_price1") is not None:
+        open_price_parts.append(f"近月开仓发送价: {position.get('near_open_price1')}")
+    if position.get("far_open_price1") is not None:
+        open_price_parts.append(f"远月开仓发送价: {position.get('far_open_price1')}")
+    if position.get("near_open_price") is not None:
+        open_price_parts.append(f"    近月开仓成交价: {position.get('near_open_price')}")
+    if position.get("far_open_price") is not None:
+        open_price_parts.append(f"远月开仓成交价: {position.get('far_open_price')}")
+    if open_price_parts:
+        output_lines.append(f"  {'  '.join(open_price_parts)}")
+
+    # 平仓价格信息
+    close_price_parts: list[str] = []
+    if position.get("near_close_price1") is not None:
+        close_price_parts.append(f"近月平仓发送价: {position.get('near_close_price1')}")
+    if position.get("far_close_price1") is not None:
+        close_price_parts.append(f"远月平仓发送价: {position.get('far_close_price1')}")
+    if position.get("near_close_price") is not None:
+        close_price_parts.append(f"    近月平仓成交价: {position.get('near_close_price')}")
+    if position.get("far_close_price") is not None:
+        close_price_parts.append(f"远月平仓成交价: {position.get('far_close_price')}")
+    if close_price_parts:
+        output_lines.append(f"  {'  '.join(close_price_parts)}")
+
     # 价差信息
     if position.get("open_send_spread") is not None:
         output_lines.append(f"  开仓发送价差: {position.get('open_send_spread')}")
@@ -336,6 +382,8 @@ def output_position(position: dict, is_current = False) -> list[str]:
                 position["real_profit"] = position.get("open_real_spread") - position.get("close_real_spread")
             elif position.get(SPREAD_POSITION_TYPE) == SPREAD_POSITION_TYPE_LONG:
                 position["real_profit"] = position.get("close_real_spread") - position.get("open_real_spread")
+            else:
+                position["real_profit"] = 0
             output_lines.append(f"  实际利润: {position.get('real_profit')}")
         pass
     return output_lines

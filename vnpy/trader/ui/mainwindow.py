@@ -184,6 +184,12 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         self.add_action(
             help_menu,
+            _("发送打印历史信号"),
+            get_icon_path(__file__, "email.ico"),
+            self.send_test_print_history
+        )
+        self.add_action(
+            help_menu,
             _("测试邮件"),
             get_icon_path(__file__, "email.ico"),
             self.send_test_email
@@ -381,4 +387,11 @@ class MainWindow(QtWidgets.QMainWindow):
         发送测试信号
         """
         event: Event = Event('eSendTestEventStart')
+        self.event_engine.put(event)
+
+    def send_test_print_history(self) -> None:
+        """
+        发送测试信号
+        """
+        event: Event = Event('ePrintHistory')
         self.event_engine.put(event)
