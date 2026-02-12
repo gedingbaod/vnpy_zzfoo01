@@ -116,7 +116,8 @@ class TqSdkMdApi:
 
         # 跨期套利策略（使用策略类管理）
         # self.spread_strategy = AgSpreadStrategy(gateway)
-        self.spread_strategy = NiSpreadStrategy(gateway)
+        # self.spread_strategy = NiSpreadStrategy(gateway)
+        # self.spread_strategy = SnSpreadStrategy(gateway)
 
         # 创建风险管理器
         self.risk_manager = RiskManager(strategy=self.spread_strategy)

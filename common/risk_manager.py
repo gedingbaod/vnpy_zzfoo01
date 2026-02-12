@@ -15,7 +15,8 @@ from tqsdk.objs import Quote
 from common.vnpy_time import split_cross_day_time
 
 
-from common.strategy_spread import BaseStrategy, SPREAD_POSITION
+from common.strategy_spread import BaseStrategy, SPREAD_POSITION, SPREAD_POSITION_TYPE, SPREAD_POSITION_TYPE_SHORT, \
+    SPREAD_POSITION_TYPE_LONG
 
 # 收盘前多少分钟停止交易
 CLOSE_BEFORE_MINUTE = 15
@@ -241,7 +242,7 @@ class RiskManager:
         if current_position is None:
             output_lines.append("    当前持仓记录为空")
         else:
-            output_lines.extend(output_position(current_position))
+            output_lines.extend(output_position(current_position, is_current=True))
 
         # 在打印历史持仓记录
         history = self.strategy.history_position
@@ -262,12 +263,13 @@ class RiskManager:
         # 一次性输出
         self.strategy.gateway.write_log("\n".join(output_lines))
 
-def output_position(position: dict) -> list[str]:
+def output_position(position: dict, is_current = False) -> list[str]:
 
     output_lines: list[str] = []
     # 打印关键字段
-    status = position.get("position_status", "N/A")
-    output_lines.append(f"  状态: {status}")
+    position_status = position.get("position_status", "N/A")
+    position_type = position.get(SPREAD_POSITION_TYPE, "N/A")
+    output_lines.append(f"  状态: {position_status}  类型: {position_type}")
 
     # 时间信息（一行4个）
     time_parts: list[str] = []
@@ -319,11 +321,23 @@ def output_position(position: dict) -> list[str]:
         output_lines.append(f"  远月合约: {position.get('far_symbol')}")
 
     # 价差信息
-    if position.get("open_spread") is not None:
-        output_lines.append(f"  开仓价差: {position.get('open_spread')}")
-    if position.get("close_spread") is not None:
-        output_lines.append(f"  平仓价差: {position.get('close_spread')}")
+    if position.get("open_send_spread") is not None:
+        output_lines.append(f"  开仓发送价差: {position.get('open_send_spread')}")
+    if position.get("open_real_spread") is not None:
+        output_lines.append(f"  实际开仓价差: {position.get('open_real_spread')}")
+    if position.get("close_send_spread") is not None:
+        output_lines.append(f"  平仓发送价差: {position.get('close_send_spread')}")
+    if position.get("close_real_spread") is not None:
+        output_lines.append(f"  实际平仓价差: {position.get('close_real_spread')}")
 
+    if not is_current:
+        if (position.get("open_real_spread") is not None) and (position.get("close_real_spread") is not None):
+            if position.get(SPREAD_POSITION_TYPE) == SPREAD_POSITION_TYPE_SHORT:
+                position["real_profit"] = position.get("open_real_spread") - position.get("close_real_spread")
+            elif position.get(SPREAD_POSITION_TYPE) == SPREAD_POSITION_TYPE_LONG:
+                position["real_profit"] = position.get("close_real_spread") - position.get("open_real_spread")
+            output_lines.append(f"  实际利润: {position.get('real_profit')}")
+        pass
     return output_lines
 
 if __name__ == "__main__":
