@@ -781,7 +781,8 @@ class CtpTdApi(TdApi):
         if not self.contract_inited:
             self.order_data.append(data)
             return
-
+        # 打印出来
+        self.gateway.write_log(data)
         symbol: str = data["InstrumentID"]
         contract: ContractData = symbol_contract_map[symbol]
 
@@ -829,7 +830,7 @@ class CtpTdApi(TdApi):
             and data["StatusMsg"] != "已撤单"       # 正常撤单
         ):
             status_msg: str = data["StatusMsg"]
-            self.gateway.write_log(f"委托 {orderid} 状态更新，{status_msg}")
+            self.gateway.write_log(f"委托：{orderid}， 时间：{order.datetime}，状态更新：{status_msg}")
 
     def onRtnTrade(self, data: dict) -> None:
         """成交数据推送"""

@@ -160,15 +160,27 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         self.add_action(
             help_menu,
-            _("发送开仓测试信号"),
+            _("发送open_short开仓信号"),
             get_icon_path(__file__, "email.ico"),
-            self.send_test_event_open
+            self.send_test_event_open_short
         )
         self.add_action(
             help_menu,
-            _("发送平仓测试信号"),
+            _("发送close_short平仓信号"),
             get_icon_path(__file__, "email.ico"),
-            self.send_test_event_close
+            self.send_test_event_close_short
+        )
+        self.add_action(
+            help_menu,
+            _("发送open_long开仓信号"),
+            get_icon_path(__file__, "email.ico"),
+            self.send_test_event_open_long
+        )
+        self.add_action(
+            help_menu,
+            _("发送close_long平仓信号"),
+            get_icon_path(__file__, "email.ico"),
+            self.send_test_event_close_long
         )
         self.add_action(
             help_menu,
@@ -361,18 +373,31 @@ class MainWindow(QtWidgets.QMainWindow):
         dialog: GlobalDialog = GlobalDialog()
         dialog.exec()
 
-    def send_test_event_open(self) -> None:
+    def send_test_event_open_short(self) -> None:
         """
         发送测试信号
         """
-        event: Event = Event('eSendTestEventOpen')
+        event: Event = Event('eSendTestEventOpenShort')
         self.event_engine.put(event)
 
-    def send_test_event_close(self) -> None:
+    def send_test_event_close_short(self) -> None:
         """
         发送测试信号
         """
-        event: Event = Event('eSendTestEventClose')
+        event: Event = Event('eSendTestEventCloseShort')
+        self.event_engine.put(event)
+    def send_test_event_open_long(self) -> None:
+        """
+        发送测试信号
+        """
+        event: Event = Event('eSendTestEventOpenLong')
+        self.event_engine.put(event)
+
+    def send_test_event_close_long(self) -> None:
+        """
+        发送测试信号
+        """
+        event: Event = Event('eSendTestEventCloseLong')
         self.event_engine.put(event)
 
     def send_test_event_timeout(self) -> None:

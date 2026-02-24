@@ -40,8 +40,10 @@ EVENT_ERROR_ORDER = "eTqsdkOrder"
 # Quote更新事件，用于注册
 EVENT_UPDATE_QUOTE = "eTqsdkUpdateQuote"
 # 测试消息
-EVENT_SEND_TEST_OPEN = 'eSendTestEventOpen'
-EVENT_SEND_TEST_CLOSE = 'eSendTestEventClose'
+EVENT_SEND_TEST_OPEN_SHORT = 'eSendTestEventOpenShort'
+EVENT_SEND_TEST_CLOSE_SHORT = 'eSendTestEventCloseShort'
+EVENT_SEND_TEST_OPEN_LONG = 'eSendTestEventOpenLong'
+EVENT_SEND_TEST_CLOSE_LONG = 'eSendTestEventCloseLong'
 EVENT_SEND_TEST_TIMEOUT = 'eSendTestEventTimeout'
 EVENT_SEND_TEST_START = 'eSendTestEventStart'
 # 空差持仓
@@ -238,8 +240,10 @@ class SpreadTradingStrategy(BaseStrategy):
         """注册回调事件"""
         self.gateway.event_engine.register(EVENT_ERROR_ORDER, self.on_order_exception)
         self.gateway.event_engine.register(EVENT_UPDATE_QUOTE, self.on_subscribe_quote)
-        self.gateway.event_engine.register(EVENT_SEND_TEST_OPEN, self.test_func_open)
-        self.gateway.event_engine.register(EVENT_SEND_TEST_CLOSE, self.test_func_close)
+        self.gateway.event_engine.register(EVENT_SEND_TEST_OPEN_SHORT, self.test_func_open_short)
+        self.gateway.event_engine.register(EVENT_SEND_TEST_CLOSE_SHORT, self.test_func_close_short)
+        self.gateway.event_engine.register(EVENT_SEND_TEST_OPEN_LONG, self.test_func_open_long)
+        self.gateway.event_engine.register(EVENT_SEND_TEST_CLOSE_LONG, self.test_func_close_long)
         self.gateway.event_engine.register(EVENT_SEND_TEST_TIMEOUT, self.test_func_timeout)
         self.gateway.event_engine.register(EVENT_SEND_TEST_START, self.test_func_all_start)
 
@@ -865,7 +869,9 @@ class SpreadTradingStrategy(BaseStrategy):
                 reference=f"spread_short_far_{self.far_symbol}"
             )
             order_id_far = self.gateway.send_order(req_far)
-
+            self.gateway.write_log(f"做空价差开仓订单已发送:\n"
+                                   f"  near_open_order: {order_id_near}, near_open_bid_price1: {near_quote.bid_price1},"
+                                   f" far_open_order: {order_id_far}, far_open_ask_price1: {far_quote.ask_price1} ")
             if order_id_near and order_id_far:
                 # 记录待成交订单（用于超时检查和状态跟踪）
                 create_time = get_timestamp()
@@ -902,9 +908,7 @@ class SpreadTradingStrategy(BaseStrategy):
                     "far_volume": self.transaction_volume,
                 })
 
-                self.gateway.write_log(f"做空价差开仓订单已发送:\n"
-                    f"  near_open_order: {order_id_near}, near_open_bid_price1: {near_quote.bid_price1},"
-                    f" far_open_order: {order_id_far}, far_open_ask_price1: {far_quote.ask_price1} ")
+
             else:
                 self.gateway.write_log("做空价差开仓失败")
                 # 清理部分订单（如果有一个订单发送成功，另一个失败）
@@ -978,7 +982,9 @@ class SpreadTradingStrategy(BaseStrategy):
             )
             # 返回订单id，如果发送失败返回""
             order_id_far = self.gateway.send_order(req_far)
-
+            self.gateway.write_log(f"做多价差开仓订单已发送:\n"
+                                   f"  near_open_order: {order_id_near}, near_open_ask_price1: {near_quote.ask_price1},"
+                                   f" far_open_order: {order_id_far}, far_open_bid_price1: {far_quote.bid_price1} ")
 
             # 记录待成交订单（用于超时检查和状态跟踪）
             create_time = get_timestamp()
@@ -1014,9 +1020,7 @@ class SpreadTradingStrategy(BaseStrategy):
                     "near_volume": self.transaction_volume,
                     "far_volume": self.transaction_volume,
                 })
-                self.gateway.write_log(f"做多价差开仓订单已发送:\n"
-                    f"  near_open_order: {order_id_near}, near_open_ask_price1: {near_quote.ask_price1},"
-                    f" far_open_order: {order_id_far}, far_open_bid_price1: {far_quote.bid_price1} ")
+
             else:
                 self.gateway.write_log("做多价差开仓失败")
                 # 清理部分订单（如果有一个订单发送成功，另一个失败）
@@ -1613,7 +1617,7 @@ class SpreadTradingStrategy(BaseStrategy):
             self.gateway.write_log(f"紧急平仓异常: {str(e)}")
 
     def _exception_process(self):
-        self.spread_position[POSITION_STATUS] = PositionStatus.EXCEPTION
+        self.spread_position[POSITION_STATUS] = PositionStatus.CLOSED
         self.spread_position["exception_time"] = get_now_str()
         item_position = copy.deepcopy(self.spread_position)
         self.history_position.append(item_position)
@@ -1723,14 +1727,28 @@ class SpreadTradingStrategy(BaseStrategy):
         except Exception as e:
             self.gateway.write_log(f"平仓异常: {str(e)}")
 
-    def test_func_open(self, event: Event):
+    def test_func_open_short(self, event: Event):
+        self.gateway.write_log('---------------------进入开仓测试任务-----------------------')
+        near_quote = self.spread_quotes[0]
+        far_quote = self.spread_quotes[1]
+        self._spread_open_short(near_quote, far_quote)
+        self.gateway.write_log('---------------------开仓测试任务结束-----------------------')
+
+    def test_func_close_short(self, event: Event):
+        self.gateway.write_log('---------------------进入平仓测试任务-----------------------')
+        near_quote = self.spread_quotes[0]
+        far_quote = self.spread_quotes[1]
+        self._spread_close_short(near_quote, far_quote)
+        self.gateway.write_log('---------------------平仓测试任务结束-----------------------')
+
+    def test_func_open_long(self, event: Event):
         self.gateway.write_log('---------------------进入开仓测试任务-----------------------')
         near_quote = self.spread_quotes[0]
         far_quote = self.spread_quotes[1]
         self._spread_open_long(near_quote, far_quote)
         self.gateway.write_log('---------------------开仓测试任务结束-----------------------')
 
-    def test_func_close(self, event: Event):
+    def test_func_close_long(self, event: Event):
         self.gateway.write_log('---------------------进入平仓测试任务-----------------------')
         near_quote = self.spread_quotes[0]
         far_quote = self.spread_quotes[1]
