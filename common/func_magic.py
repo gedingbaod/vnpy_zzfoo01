@@ -1,5 +1,5 @@
+import inspect
 from common.vnpy_time import get_now_str
-
 
 def run_once(func):
     """装饰器：让函数仅执行一次"""
@@ -14,11 +14,6 @@ def run_once(func):
             is_called = True
         return result  # 后续调用返回第一次执行的结果
     return wrapper
-
-@run_once
-def print_msg_with_time_once(msg: str):
-    print(f'{msg} at {get_now_str()}')
-
 
 def run_limited(max_runs: int = 1):
     """
@@ -46,22 +41,61 @@ def run_limited(max_runs: int = 1):
 
     return decorator
 
-@run_limited(max_runs=2)
-def print_msg_with_time_twice(msg: str):
-    print(f'{msg} at {get_now_str()}')
 
-@run_limited(max_runs=3)
-def print_msg_with_time_third(msg: str):
-    print(f'{msg} at {get_now_str()}')
+def run_limited_by_location(max_runs: int = 1):
+    def decorator(func):
+        # 外层字典：key = (filename, line_no) 或更详细的栈信息
+        counters = {}
 
-@run_limited(max_runs=5)
-def print_msg_with_time_fifth(msg: str):
-    print(f'{msg} at {get_now_str()}')
+        def wrapper(*args, **kwargs):
+            # 获取调用者的帧（跳过当前装饰器内部）
+            frame = inspect.currentframe().f_back
+            filename = frame.f_code.co_filename
+            lineno = frame.f_lineno
+            key = (filename, lineno)  # 唯一标识一个静态调用位置
 
-@run_limited(max_runs=10)
-def print_msg_with_time_tenth(msg: str):
-    print(f'{msg} at {get_now_str()}')
+            if key not in counters:
+                counters[key] = [0, []]
+            count, results = counters[key]
 
-@run_limited(max_runs=20)
-def print_msg_with_time_twentieth(msg: str):
-    print(f'{msg} at {get_now_str()}')
+            if count < max_runs:
+                result = func(*args, **kwargs)
+                counters[key][0] += 1
+                counters[key][1].append(result)
+                return result
+            else:
+                return results[-1] if results else None
+
+        return wrapper
+    return decorator
+
+@run_limited_by_location(max_runs=1)
+def print_msg_with_time_once(msg: str, print_func: callable = print) -> None:
+    print_func(f'{msg} at {get_now_str()}')
+
+@run_limited_by_location(max_runs=2)
+def print_msg_with_time_twice(msg: str, print_func: callable = print) -> None:
+    print_func(f'{msg} at {get_now_str()}')
+
+@run_limited_by_location(max_runs=3)
+def print_msg_with_time_third(msg: str, print_func: callable = print) -> None:
+    print_func(f'{msg} at {get_now_str()}')
+
+@run_limited_by_location(max_runs=5)
+def print_msg_with_time_fifth(msg: str, print_func: callable = print) -> None:
+    print_func(f'{msg} at {get_now_str()}')
+
+@run_limited_by_location(max_runs=10)
+def print_msg_with_time_tenth(msg: str, print_func: callable = print) -> None:
+    print_func(f'{msg} at {get_now_str()}')
+
+@run_limited_by_location(max_runs=20)
+def print_msg_with_time_twentieth(msg: str, print_func: callable = print) -> None:
+    print_func(f'{msg} at {get_now_str()}')
+
+if __name__ == '__main__':
+
+    for i in range(1,5):
+        print_msg_with_time_twice("test01")  # 第一次执行（计数器独立）
+        print_msg_with_time_twice("test02")  # 第一次执行（计数器独立）
+        print_msg_with_time_twice("test03")  # 第一次执行（计数器独立）

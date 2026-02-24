@@ -22,6 +22,7 @@ import pandas as pd
 from tqsdk.objs import Quote
 
 from common.func_magic import print_msg_with_time_third, print_msg_with_time_fifth
+
 from common.time_delay import precise_time_trigger, check_market_opening_time_morning, \
     check_market_opening_time_night
 from common.vnpy_time import get_timestamp, get_now_str, datetime_format
@@ -170,8 +171,8 @@ class BaseStrategy(ABC):
         pass
 
     def print_log(self, msg) -> None:
-        # self.gateway.write_log(msg)
-        print(msg)
+        self.gateway.write_log(msg)
+        # print(msg)
 
 
 class SpreadTradingStrategy(BaseStrategy):
@@ -212,7 +213,7 @@ class SpreadTradingStrategy(BaseStrategy):
         self.klines_duration = 1 * 60  # kline的请求周期
         self.price_tick_min = 1        # 一跳的最小变动价格
 
-        # 计算成本用
+        # 计算成本用(均值，方差，上边界，下边界，动态滑点）
         self.current_spread_indicator = None
         self.static_spread_cost = self.commission_point + self.slippage_points + self.min_profit_points
 
@@ -323,10 +324,10 @@ class SpreadTradingStrategy(BaseStrategy):
             near_time = datetime_format(near_quote.datetime)
             far_time = datetime_format(far_quote.datetime)
 
-            print_msg_with_time_fifth(f"TQSDK行情时间 near_time: {near_time} far_time:{far_time}")
+            print_msg_with_time_fifth(f"TQSDK行情时间 near_time: {near_time} far_time:{far_time}", self.gateway.write_log)
 
             # 关键：带精度容错判断是否为0.5秒（避免浮点数精度问题）
-            # _check_data_sync开仓可以差0.6秒，平仓必须时间相等
+            # 开仓可以差0.6秒，平仓必须时间相等
             # 这里每次更新都会跑到，所以不同步已经是常规的情况，所以不在打印日志，严格要求两个quote时间同步
             # if self.spread_position[POSITION_STATUS] == PositionStatus.OPENED:
             check_time_delta = timedelta(milliseconds=100)
@@ -376,7 +377,10 @@ class SpreadTradingStrategy(BaseStrategy):
         # 盘口成本为负时，说明价差还可能会上涨，比如会到-10，所以等价差从高点开始回落，再下单是比较好的时机
         real_short_spread = near_quote.bid_price1 - far_quote.ask_price1
         real_long_spread = near_quote.ask_price1 - far_quote.bid_price1
-        dynamic_spread_cost = self.static_spread_cost + abs(real_short_spread - real_long_spread) * 2
+        # 动态滑点
+        dynamic_slippage_points = abs(real_short_spread - real_long_spread) * 2
+        # 动态持仓成本
+        dynamic_spread_cost = self.static_spread_cost + dynamic_slippage_points
 
         # 计算klines价差
         near_klines = klines_sub[self.near_symbol]
@@ -403,14 +407,14 @@ class SpreadTradingStrategy(BaseStrategy):
             if isnan(mean):
                 return None
             std = np.std(spread)
-            # 计算上轨边界
-            upper_bound = mean + max(self.klines_std_k * std, dynamic_spread_cost)   # 出于风控，不能低于THRESHOLD_DOWN
-            # 计算下轨边界
-            lower_bound = mean - max(self.klines_std_k * std, dynamic_spread_cost)
+            # 计算上轨边界，出于风控考虑，不能低于静态阈值，否则成本不报
+            upper_bound = mean + max(self.klines_std_k * std, self.static_spread_cost) + dynamic_slippage_points
+            # 计算下轨边界，同时每个边界都要加上动态滑点
+            lower_bound = mean - max(self.klines_std_k * std, self.static_spread_cost) - dynamic_slippage_points
             # 存储前值
 
-            self.current_spread_indicator = (mean, std, upper_bound, lower_bound)
-            print_msg_with_time_fifth(str(self.current_spread_indicator))
+            self.current_spread_indicator = (mean, std, upper_bound, lower_bound, dynamic_slippage_points)
+            print_msg_with_time_fifth(f'指标：{str(self.current_spread_indicator)}', self.gateway.write_log)
             return self.current_spread_indicator
 
         else:
@@ -418,18 +422,18 @@ class SpreadTradingStrategy(BaseStrategy):
             # 数据没对齐就用前值，但是dynamic_spread_cost是变化的
             if self.current_spread_indicator is not None:
                 # klines虽然没变，但是dynamic_spread_cost是变化的，所以要重新计算
-                (mean, std, upper_bound, lower_bound) = self.current_spread_indicator
-                # 计算上轨边界
-                upper_bound = mean + max(self.klines_std_k * std, dynamic_spread_cost)  # 出于风控，不能低于THRESHOLD_DOWN
+                (mean, std, upper_bound, lower_bound, _) = self.current_spread_indicator
+                # 计算上轨边界，出于风控考虑，不能低于静态阈值，否则成本不报
+                upper_bound = mean + max(self.klines_std_k * std, self.static_spread_cost) + dynamic_slippage_points
                 # 计算下轨边界
-                lower_bound = mean - max(self.klines_std_k * std, dynamic_spread_cost)
+                lower_bound = mean - max(self.klines_std_k * std, self.static_spread_cost) - dynamic_slippage_points
                 # 重新赋值
-                self.current_spread_indicator = (mean, std, upper_bound, lower_bound)
-                print_msg_with_time_third("--klines不一致，使用历史数据计算完成")
+                self.current_spread_indicator = (mean, std, upper_bound, lower_bound, dynamic_slippage_points)
+                print_msg_with_time_third(f"--klines不一致，使用历史数据计算完成，{self.current_spread_indicator}", self.gateway.write_log)
                 return self.current_spread_indicator
             else:
                 # 数据不存在，返回空
-                print_msg_with_time_third("---klines时间不一致，没有前次数据")
+                print_msg_with_time_third("---klines时间不一致，没有前次数据", self.gateway.write_log)
                 return None
 
     def on_tick(self, near_quote: Quote, far_quote: Quote) -> None:
@@ -470,6 +474,7 @@ class SpreadTradingStrategy(BaseStrategy):
             # 如果未持仓才进入寻找开仓机会
             if self.spread_position[POSITION_STATUS] is PositionStatus.CLOSED:
                 # 空仓检查开仓机会
+                print_msg_with_time_fifth(f'ontick中，进入_find_open_opportunity', self.gateway.write_log)
                 self._find_open_opportunity(near_quote, far_quote)
                 return
             elif self.spread_position[POSITION_STATUS] is PositionStatus.OPENED:
@@ -517,7 +522,10 @@ class SpreadTradingStrategy(BaseStrategy):
         real_long_spread = near_quote.ask_price1 - far_quote.bid_price1
 
 
-        (mean, std, upper_bound, lower_bound) = self.current_spread_indicator
+        (mean, std, upper_bound, lower_bound, dynamic_slippage_points) = self.current_spread_indicator
+
+        print_msg_with_time_fifth(f'开仓机会：{self.current_spread_indicator} \n'
+            f'real_short_spread: {real_short_spread}, real_long_spread: {real_long_spread}', self.gateway.write_log)
         # 做空价差：价差过高
         # 卖出近月合约，买入远月合约，预期价差会回归到中轨
         if real_short_spread > upper_bound:
@@ -525,13 +533,13 @@ class SpreadTradingStrategy(BaseStrategy):
             if check_market_opening_time_morning():
             # if True:
                 self._spread_open_short_delay(near_quote,far_quote,"09:00:00.001000")
-                self.gateway.write_log(f"早盘延时开仓: {real_short_spread} > {upper_bound}")
+                self.gateway.write_log(f"早盘延时开仓: {real_short_spread} > {upper_bound} 动态滑点{dynamic_slippage_points}")
             elif check_market_opening_time_night():
                 self._spread_open_short_delay(near_quote,far_quote,"21:00:00.001000")
-                self.gateway.write_log(f"夜盘延时开仓: {real_short_spread} > {upper_bound}")
+                self.gateway.write_log(f"夜盘延时开仓: {real_short_spread} > {upper_bound} 动态滑点{dynamic_slippage_points}")
             else:
                 self._spread_open_short(near_quote, far_quote)
-                self.gateway.write_log(f"做空价差开仓: {real_short_spread} > {upper_bound}")
+                self.gateway.write_log(f"做空价差开仓: {real_short_spread} > {upper_bound} 动态滑点{dynamic_slippage_points}")
             return
 
         # 做多价差：价差过低
@@ -540,16 +548,24 @@ class SpreadTradingStrategy(BaseStrategy):
             if check_market_opening_time_morning():
             # if True:
                 self._spread_open_long_delay(near_quote,far_quote,"09:00:00.001000")
-                self.gateway.write_log(f"早盘延时开仓: {real_long_spread} < {lower_bound}")
+                self.gateway.write_log(f"早盘延时开仓: {real_long_spread} < {lower_bound} 动态滑点{dynamic_slippage_points}")
             elif check_market_opening_time_night():
                 self._spread_open_long_delay(near_quote,far_quote,"21:00:00.001000")
-                self.gateway.write_log(f"夜盘延时开仓: {real_long_spread} < {lower_bound}")
+                self.gateway.write_log(f"夜盘延时开仓: {real_long_spread} < {lower_bound} 动态滑点{dynamic_slippage_points}")
             else:
                 self._spread_open_long(near_quote, far_quote)
-                self.gateway.write_log(f"做多价差开仓: {real_long_spread} < {lower_bound}")
+                self.gateway.write_log(f"做多价差开仓: {real_long_spread} < {lower_bound} 动态滑点{dynamic_slippage_points}")
             return
 
     def _find_close_opportunity(self, near_quote: Quote, far_quote: Quote):
+
+
+
+        # 获取持仓类型
+        position_type = self.spread_position.get(SPREAD_POSITION_TYPE)
+        # 获取技术指标
+        (mean, std, upper_bound, lower_bound, dynamic_slippage_points) = self.current_spread_indicator
+
 
         # 计算价差
         # real_short_spread: 做空价差（可卖出价差）= 近月买价 - 远月卖价
@@ -557,10 +573,6 @@ class SpreadTradingStrategy(BaseStrategy):
         # real_long_spread: 做多价差（可买入价差）= 近月卖价 - 远月买价
         real_long_spread = near_quote.ask_price1 - far_quote.bid_price1
 
-        # 获取持仓类型
-        position_type = self.spread_position.get(SPREAD_POSITION_TYPE)
-        # 获取技术指标
-        (mean, std, upper_bound, lower_bound) = self.current_spread_indicator
 
         # 根据持仓状态执行相应操作
         if position_type == SPREAD_POSITION_TYPE_SHORT:
@@ -569,34 +581,34 @@ class SpreadTradingStrategy(BaseStrategy):
             # 获取计算指标
             # 平仓：价差回归到中轨（<=35）
             # 做空价差盈利了，平仓获利
-            if real_long_spread <= mean:
-                self.gateway.write_log(f"做空价差回归: {real_long_spread} <= {mean}，平仓")
+            if real_long_spread + current_spread_indicator <= mean:
+                self.gateway.write_log(f"做空价差回归: {real_long_spread} <= {mean}，平仓 动态滑点{dynamic_slippage_points}")
                 self._spread_close_short(near_quote, far_quote)
                 return
 
             # 风控止损：价差继续扩大（>开仓价+3个标准差）
             # 做空价差亏损了，止损平仓
-            if real_long_spread > open_spread + std * 3:
-                self.gateway.write_log(f"做空价差止损: {real_long_spread} > {open_spread} + {std * 3}，平仓")
-                self._spread_close_short(near_quote, far_quote)
-                return
+            # if real_long_spread > open_spread + std * 3:
+            #     self.gateway.write_log(f"做空价差止损: {real_long_spread} > {open_spread} + {std * 3}，平仓 动态滑点{dynamic_slippage_points}")
+            #     self._spread_close_short(near_quote, far_quote)
+            #     return
 
         elif position_type == SPREAD_POSITION_TYPE_LONG:
             # 获取开仓时的价差
             open_spread = self.spread_position["open_send_spread"]
             # 平仓：价差回归到中轨（>=35）
             # 做多价差盈利了，平仓获利
-            if real_short_spread >= mean:
-                self.gateway.write_log(f"做多价差回归: {real_short_spread} >= {mean}，平仓")
+            if real_short_spread - current_spread_indicator >= mean:
+                self.gateway.write_log(f"做多价差回归: {real_short_spread} >= {mean}，平仓 动态滑点{dynamic_slippage_points}")
                 self._spread_close_long(near_quote, far_quote)
                 return
 
             # 风控止损：价差继续下跌（<开仓价-50）
             # 做多价差亏损了，止损平仓
-            if real_short_spread < open_spread - std * 3:
-                self.gateway.write_log(f"做多价差止损: {real_short_spread} < {open_spread} - {std * 3}，平仓")
-                self._spread_close_long(near_quote, far_quote)
-                return
+            # if real_short_spread < open_spread - std * 3:
+            #     self.gateway.write_log(f"做多价差止损: {real_short_spread} < {open_spread} - {std * 3}，平仓 动态滑点{dynamic_slippage_points}")
+            #     self._spread_close_long(near_quote, far_quote)
+            #     return
 
     def get_market_price(self, near_quote: Quote, far_quote: Quote, exchange: Exchange, position_type) -> tuple[
         Literal[OrderType.LIMIT, OrderType.MARKET], float, float]:
@@ -1038,7 +1050,7 @@ class SpreadTradingStrategy(BaseStrategy):
         # TradeData由gateway里的onRtnOrder封装出来
         # 启动时，这里会更新当日的所有成交信息
         try:
-            self.gateway.write_log(trade)
+            self.gateway.write_log(f'成交数据：{trade}')
             vt_orderid: str = trade.vt_orderid
             price: float = trade.price
 
@@ -1588,23 +1600,19 @@ class SpreadTradingStrategy(BaseStrategy):
                     # 平near空头
                     near_close_order_id = self._send_emergency_close_order(self.near_symbol, Direction.LONG)
                     self.spread_position["near_close_order_id"] = near_close_order_id
-                    # self.spread_position["near_close_status"] = Status.SUBMITTING
                 else:
                     # 平far多头
                     far_close_order_id = self._send_emergency_close_order(self.far_symbol, Direction.SHORT)
                     self.spread_position["far_close_order_id"] = far_close_order_id
-                    # self.spread_position["far_close_status"] = Status.SUBMITTING
             elif position_type == SPREAD_POSITION_TYPE_LONG:
                 if leg == "near":
                     # 平near多头
                     near_close_order_id = self._send_emergency_close_order(self.near_symbol, Direction.SHORT)
                     self.spread_position["near_close_order_id"] = near_close_order_id
-                    # self.spread_position["near_close_status"] = Status.SUBMITTING
                 else:
                     # 平far空头
                     far_close_order_id = self._send_emergency_close_order(self.far_symbol, Direction.LONG)
                     self.spread_position["far_close_order_id"] = far_close_order_id
-                    # self.spread_position["far_close_status"] = Status.SUBMITTING
 
             self._exception_process()
 
@@ -1635,8 +1643,6 @@ class SpreadTradingStrategy(BaseStrategy):
         direction : Direction
             方向
         """
-        # order_type, near_price, far_price = get_market_price(
-        #     near_quote, far_quote, self.exchange, SPREAD_POSITION_TYPE_LONG)
         if symbol == self.near_symbol:
             close_quote = self.spread_quotes[0]
         elif symbol == self.far_symbol:
@@ -1676,10 +1682,6 @@ class SpreadTradingStrategy(BaseStrategy):
             self.gateway.write_log(f"紧急平仓订单已发送: {symbol} {direction.value} {order_id} {close_price}")
             # 更新持仓状态
             self.spread_position[POSITION_STATUS] = PositionStatus.CLOSING
-            # self.spread_position["near_close_order_id"] = near_close_order_id
-            # self.spread_position["far_close_order_id"] = far_close_order_id
-            # self.spread_position["near_close_price1"] = near_quote.ask_price1
-            # self.spread_position["far_close_price1"] = far_quote.bid_price1
             self.spread_position["close_start_time"] = get_now_str()
 
             return order_id
@@ -1825,13 +1827,13 @@ class NiSpreadStrategy(SpreadTradingStrategy):
         # 设置白银特定的策略参数
         self.transaction_volume = 1    # 交易手数
         self.order_timeout = 0.8       # 订单超时时间（秒）
-        self.min_profit_points = 3    # 基本利润（最小盈利）
-        self.slippage_points = 3 * 4   # 做一次差价就是4次下单，一次滑点设为3
-        self.commission_point = 2      # 做一次差价开平的手续费成本,12，一跳10元
         self.klines_std_k = 3          # 计算标准差倍数，用于计算上下轨
         self.klines_windows = 20       # kline的计算窗口，请求时会请求双倍数据
         self.klines_duration = 15 * 60 # kline的请求周期
         self.price_tick_min = 10       # 一跳的最小变动价格
+        self.min_profit_points = 10    # 基本利润（最小盈利）
+        self.slippage_points = 3 * 4   # 做一次差价就是4次下单，一次滑点设为3
+        self.commission_point = 2      # 做一次差价开平的手续费成本,12，一跳10元
 
 class SnSpreadStrategy(SpreadTradingStrategy):
     """

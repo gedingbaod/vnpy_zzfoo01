@@ -207,7 +207,7 @@ class TqSdkMdApi:
                 # 等待行情推送
                 self.api.wait_update()
 
-                print_msg_with_time_twentieth(self.quotes)
+                print_msg_with_time_twentieth(f'实时quote：{self.quotes}', self.gateway.write_log)
 
                 # 检查是否有跨期合约的行情，执行跨期套利策略
                 self.spread_strategy.check_and_run(self.quotes, self.klines)
