@@ -524,10 +524,10 @@ class SpreadTradingStrategy(BaseStrategy):
             # 如果是在08:59:00到08:59:59之间，就做定时任务开仓
             if check_market_opening_time_morning():
             # if True:
-                self._spread_open_short_delay(near_quote,far_quote,"09:00:00.000001")
+                self._spread_open_short_delay(near_quote,far_quote,"09:00:00.001000")
                 self.gateway.write_log(f"早盘延时开仓: {real_short_spread} > {upper_bound}")
             elif check_market_opening_time_night():
-                self._spread_open_short_delay(near_quote,far_quote,"21:00:00.000001")
+                self._spread_open_short_delay(near_quote,far_quote,"21:00:00.001000")
                 self.gateway.write_log(f"夜盘延时开仓: {real_short_spread} > {upper_bound}")
             else:
                 self._spread_open_short(near_quote, far_quote)
@@ -539,10 +539,10 @@ class SpreadTradingStrategy(BaseStrategy):
         if real_long_spread < lower_bound:
             if check_market_opening_time_morning():
             # if True:
-                self._spread_open_long_delay(near_quote,far_quote,"09:00:00.000001")
+                self._spread_open_long_delay(near_quote,far_quote,"09:00:00.001000")
                 self.gateway.write_log(f"早盘延时开仓: {real_long_spread} < {lower_bound}")
             elif check_market_opening_time_night():
-                self._spread_open_long_delay(near_quote,far_quote,"21:00:00.000001")
+                self._spread_open_long_delay(near_quote,far_quote,"21:00:00.001000")
                 self.gateway.write_log(f"夜盘延时开仓: {real_long_spread} < {lower_bound}")
             else:
                 self._spread_open_long(near_quote, far_quote)
