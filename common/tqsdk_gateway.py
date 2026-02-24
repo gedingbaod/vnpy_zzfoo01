@@ -200,7 +200,7 @@ class TqSdkMdApi:
                 f"请检查 common/strategy_spread.py 中是否定义了该类\n"
                 f"可用的策略类: {', '.join(available_classes)}"
             )
-
+        gateway.write_log(f"创建对象：{class_name}，近期合约：{near_symbol}，远期合约{far_symbol}")
         # 创建策略实例，传入 gateway, near_symbol, far_symbol
         return strategy_class(gateway, near_symbol, far_symbol)
 
