@@ -19,8 +19,9 @@ from tqsdk import TqApi, TqAuth
 from common.func_magic import print_msg_with_time_once,print_msg_with_time_fifth,print_msg_with_time_twentieth
 from common.gateway_tq import BaseGatewayTq
 from common.risk_manager import RiskManager
-from common.strategy_spread import AgSpreadStrategy, EVENT_UPDATE_QUOTE, SnSpreadStrategy, NiSpreadStrategy
+from common import strategy_spread as strategy_spread_module
 from vnpy.event import Event
+from common.strategy_spread import EVENT_UPDATE_QUOTE
 from vnpy.trader.constant import (
     Direction,
     Offset,
@@ -37,6 +38,7 @@ from vnpy.trader.object import (
     ContractData,
 )
 from vnpy.trader.utility import get_folder_path, ZoneInfo
+from vnpy.trader.setting import SETTINGS
 
 try:
     from common.account.tq_account import tq_auth
@@ -114,16 +116,97 @@ class TqSdkMdApi:
         self.order_ids: list[str] = []  # 记录订单ID
         self.traded_vt_orderids: set = set()  # 已成交的订单ID集合
 
-        # 跨期套利策略（使用策略类管理）
-        # self.spread_strategy = AgSpreadStrategy(gateway)
-        # self.spread_strategy = NiSpreadStrategy(gateway)
-        # self.spread_strategy = SnSpreadStrategy(gateway)
+        # 跨期套利策略（使用工厂函数创建）
+        # 从 vt_setting.json 的 spread.near_symbol 和 spread.far_symbol 配置自动推断
+        self.spread_strategy = self.create_spread_strategy(gateway)
 
         # 创建风险管理器
         self.risk_manager = RiskManager(strategy=self.spread_strategy)
 
         # TQSDK认证
         self.auth = auth if auth else (tq_auth if TQ_AUTH_AVAILABLE else None)
+
+
+
+    @staticmethod
+    def create_spread_strategy(gateway: BaseGatewayTq):
+        """
+        工厂函数：根据配置动态创建SpreadStrategy实例
+
+        从 vt_setting.json 读取以下配置：
+        - spread.near_symbol: 近月合约，如 "sn2603"
+        - spread.far_symbol: 远月合约，如 "sn2604"
+
+        规则：
+        1. 判断两个 symbol 的前两个字符是否一致
+        2. 如果一致，用前两个字符（首字母大写）+ "SpreadStrategy" 构造类名
+        3. 创建策略对象，传入 gateway, near_symbol, far_symbol
+
+        例如：
+        - near_symbol="sn2603", far_symbol="sn2604" -> SnSpreadStrategy
+        - near_symbol="ni2603", far_symbol="ni2605" -> NiSpreadStrategy
+        - near_symbol="ag2604", far_symbol="ag2606" -> AgSpreadStrategy
+
+        Parameters
+        ----------
+        gateway : BaseGatewayTq
+            Gateway实例
+
+        Returns
+        -------
+        SpreadStrategy
+            策略实例
+
+        Raises
+        ------
+        ValueError
+            如果配置不正确或找不到对应的策略类
+        """
+        # 从配置读取合约代码
+        near_symbol = SETTINGS.get("spread.near_symbol", "")
+        far_symbol = SETTINGS.get("spread.far_symbol", "")
+
+        # 验证配置
+        if not near_symbol or not far_symbol:
+            raise ValueError(
+                "未配置 spread.near_symbol 或 spread.far_symbol，请检查 vt_setting.json"
+            )
+
+        # 判断前两个字符是否一致
+        if len(near_symbol) < 2 or len(far_symbol) < 2:
+            raise ValueError(
+                f"合约代码长度不足: near_symbol={near_symbol}, far_symbol={far_symbol}"
+            )
+
+        near_prefix = near_symbol[:2].lower()
+        far_prefix = far_symbol[:2].lower()
+
+        if near_prefix != far_prefix:
+            raise ValueError(
+                f"近月合约和远月合约的品种不一致: {near_symbol} vs {far_symbol}\n"
+                f"前两个字符必须相同（如 sn2603 和 sn2604）"
+            )
+
+        # 构造类名（首字母大写 + SpreadStrategy）
+        class_name = f"{near_prefix.capitalize()}SpreadStrategy"
+
+        # 从模块中获取类
+        strategy_class = getattr(strategy_spread_module, class_name, None)
+
+        if strategy_class is None:
+            # 列出可用的策略类
+            available_classes = [
+                name for name in dir(strategy_spread_module)
+                if name.endswith("SpreadStrategy") and not name.startswith("_")
+            ]
+            raise ValueError(
+                f"找不到策略类: {class_name}\n"
+                f"请检查 common/strategy_spread.py 中是否定义了该类\n"
+                f"可用的策略类: {', '.join(available_classes)}"
+            )
+
+        # 创建策略实例，传入 gateway, near_symbol, far_symbol
+        return strategy_class(gateway, near_symbol, far_symbol)
 
     def connect(self) -> None:
         """连接TQSDK"""

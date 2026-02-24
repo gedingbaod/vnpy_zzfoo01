@@ -5,6 +5,8 @@
     "log.level": 10,
     "log.console": true,
     "log.file": true,
+    "spread.near_symbol": "sn2603",
+    "spread.far_symbol": "sn2604",
     "email.server": "smtp.qq.com",
     "email.port": 465,
     "email.username": "",

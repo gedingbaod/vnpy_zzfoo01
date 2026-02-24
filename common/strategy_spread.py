@@ -1802,9 +1802,11 @@ class AgSpreadStrategy(SpreadTradingStrategy):
     """
     白银跨期套利策略
     """
-    def __init__(self, gateway: "BaseGatewayTq"):
-        super().__init__(gateway, "ag2604", "ag2606", Exchange.SHFE)
-        # super().__init__(gateway, "sn2603", "sn2604", Exchange.SHFE)
+    def __init__(self, gateway: "BaseGatewayTq", near_symbol: str, far_symbol: str):
+        super().__init__(gateway, near_symbol, far_symbol, Exchange.SHFE)
+        # "ag2604", "ag2606"
+        #     "spread.near_symbol": "ag2604",
+        #     "spread.far_symbol": "ag2606",
         # 设置白银特定的策略参数
         self.transaction_volume = 1    # 交易手数
         self.order_timeout = 0.8       # 订单超时时间（秒）
@@ -1818,13 +1820,13 @@ class AgSpreadStrategy(SpreadTradingStrategy):
 
 class NiSpreadStrategy(SpreadTradingStrategy):
     """
-    白银跨期套利策略
+    镍跨期套利策略
     """
-    def __init__(self, gateway: "BaseGatewayTq"):
-        # super().__init__(gateway, "ag2604", "ag2606", Exchange.SHFE)
-        # super().__init__(gateway, "sn2603", "sn2604", Exchange.SHFE)
-        super().__init__(gateway, "ni2603", "ni2605", Exchange.SHFE)
-        # 设置白银特定的策略参数
+    def __init__(self, gateway: "BaseGatewayTq", near_symbol: str, far_symbol: str):
+        super().__init__(gateway, near_symbol, far_symbol, Exchange.SHFE)
+        #     "spread.near_symbol": "ni2603",
+        #     "spread.far_symbol": "ni2605",
+        # 设置镍特定的策略参数
         self.transaction_volume = 1    # 交易手数
         self.order_timeout = 0.8       # 订单超时时间（秒）
         self.klines_std_k = 3          # 计算标准差倍数，用于计算上下轨
@@ -1837,11 +1839,13 @@ class NiSpreadStrategy(SpreadTradingStrategy):
 
 class SnSpreadStrategy(SpreadTradingStrategy):
     """
-    白银跨期套利策略
+    锡跨期套利策略
     """
-    def __init__(self, gateway: "BaseGatewayTq"):
-        super().__init__(gateway, "sn2603", "sn2604", Exchange.SHFE)
-        # 设置白银特定的策略参数
+    def __init__(self, gateway: "BaseGatewayTq", near_symbol: str, far_symbol: str):
+        super().__init__(gateway, near_symbol, far_symbol, Exchange.SHFE)
+        #     "spread.near_symbol": "sn2603",
+        #     "spread.far_symbol": "sn2604",
+        # 设置锡特定的策略参数
         self.transaction_volume = 1    # 交易手数
         self.order_timeout = 0.8       # 订单超时时间（秒）
         self.min_profit_points = 3    # 基本利润（最小盈利）
