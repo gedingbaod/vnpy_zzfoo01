@@ -13,7 +13,7 @@ NS_005959 = 3599900000000
 NS_125900 = 46740000000000
 NS_125959 = 46799900000000
 
-
+NS_NOTE_BOOK_BIAS = 161200 * (10 ** 3)
 
 def check_market_opening_time_morning() -> bool:
     """
@@ -109,14 +109,14 @@ def precise_time_trigger(target_time_str: str, callback: Callable, *args, **kwar
     # 2. 获取当天0点的Unix纳秒戳
     today_zero_ns = get_today_zero_ns()
     # 3. 计算目标时间的Unix纳秒戳
-    target_abs_ns = today_zero_ns + target_today_ns
+    target_abs_ns = today_zero_ns + target_today_ns + NS_NOTE_BOOK_BIAS
     # 4. 获取当前Unix纳秒戳
     current_abs_ns = time.time_ns()
 
     # 5. 计算需要等待的纳秒数（跨天处理）
     wait_ns = target_abs_ns - current_abs_ns
     if wait_ns < 0:
-        wait_ns += 24 * 3600 * 10 ** 9  # 加一天的纳秒数
+        wait_ns += 24 * 3600 * (10 ** 9)  # 加一天的纳秒数
         print(f"目标时间已过当天，将等待到次日 {target_time_str} 触发")
 
     # 6. 高精度等待（纳秒级，避免系统时间修改影响）
