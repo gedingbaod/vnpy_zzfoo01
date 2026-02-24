@@ -7,11 +7,7 @@ from __future__ import annotations
 
 import sys
 from collections import defaultdict
-from datetime import datetime, timedelta, time
-from time import sleep
 from threading import Thread
-from typing import Any, Union, Optional
-
 import pandas as pd
 from tqsdk.objs import Quote
 from tqsdk import TqApi, TqAuth
