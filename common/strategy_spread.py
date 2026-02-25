@@ -379,7 +379,7 @@ class SpreadTradingStrategy(BaseStrategy):
         real_long_spread = near_quote.ask_price1 - far_quote.bid_price1
         # 动态滑点
         dynamic_slippage_points = abs(real_short_spread - real_long_spread) * 2
-        # 动态持仓成本
+        # 动态持仓成本线
         dynamic_spread_cost = self.static_spread_cost + dynamic_slippage_points
 
         # 计算klines价差
@@ -408,9 +408,9 @@ class SpreadTradingStrategy(BaseStrategy):
                 return None
             std = np.std(spread)
             # 计算上轨边界，出于风控考虑，不能低于静态阈值，否则成本不报
-            upper_bound = mean + max(self.klines_std_k * std, self.static_spread_cost) + dynamic_slippage_points
+            upper_bound = mean + max(self.klines_std_k * std, dynamic_spread_cost)
             # 计算下轨边界，同时每个边界都要加上动态滑点
-            lower_bound = mean - max(self.klines_std_k * std, self.static_spread_cost) - dynamic_slippage_points
+            lower_bound = mean - max(self.klines_std_k * std, dynamic_spread_cost)
             # 存储前值
 
             self.current_spread_indicator = (mean, std, upper_bound, lower_bound, dynamic_slippage_points)
@@ -424,9 +424,9 @@ class SpreadTradingStrategy(BaseStrategy):
                 # klines虽然没变，但是dynamic_spread_cost是变化的，所以要重新计算
                 (mean, std, upper_bound, lower_bound, _) = self.current_spread_indicator
                 # 计算上轨边界，出于风控考虑，不能低于静态阈值，否则成本不报
-                upper_bound = mean + max(self.klines_std_k * std, self.static_spread_cost) + dynamic_slippage_points
+                upper_bound = mean + max(self.klines_std_k * std, dynamic_spread_cost)
                 # 计算下轨边界
-                lower_bound = mean - max(self.klines_std_k * std, self.static_spread_cost) - dynamic_slippage_points
+                lower_bound = mean - max(self.klines_std_k * std, dynamic_spread_cost)
                 # 重新赋值
                 self.current_spread_indicator = (mean, std, upper_bound, lower_bound, dynamic_slippage_points)
                 print_msg_with_time_third(f"--klines不一致，使用历史数据计算完成，{self.current_spread_indicator}", self.gateway.write_log)
@@ -581,7 +581,7 @@ class SpreadTradingStrategy(BaseStrategy):
             # 获取计算指标
             # 平仓：价差回归到中轨（<=35）
             # 做空价差盈利了，平仓获利
-            if real_long_spread + current_spread_indicator <= mean:
+            if real_long_spread <= mean:
                 self.gateway.write_log(f"做空价差回归: {real_long_spread} <= {mean}，平仓 动态滑点{dynamic_slippage_points}")
                 self._spread_close_short(near_quote, far_quote)
                 return
@@ -598,7 +598,7 @@ class SpreadTradingStrategy(BaseStrategy):
             open_spread = self.spread_position["open_send_spread"]
             # 平仓：价差回归到中轨（>=35）
             # 做多价差盈利了，平仓获利
-            if real_short_spread - current_spread_indicator >= mean:
+            if real_short_spread >= mean:
                 self.gateway.write_log(f"做多价差回归: {real_short_spread} >= {mean}，平仓 动态滑点{dynamic_slippage_points}")
                 self._spread_close_long(near_quote, far_quote)
                 return
