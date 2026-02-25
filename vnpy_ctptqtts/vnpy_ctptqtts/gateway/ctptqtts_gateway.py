@@ -782,7 +782,7 @@ class CtpTdApi(TdApi):
             self.order_data.append(data)
             return
         # 打印出来
-        self.gateway.write_log(data)
+        self.gateway.write_log(f'成交信息：{data}')
         symbol: str = data["InstrumentID"]
         contract: ContractData = symbol_contract_map[symbol]
 
