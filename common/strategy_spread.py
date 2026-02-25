@@ -21,7 +21,7 @@ import pandas as pd
 from tqsdk.objs import Quote
 
 from common.func_magic import print_msg_with_time_third, print_msg_with_time_fifth
-from common.func_num import round_to_10, round_to_1
+from common.func_num import round_to_10, round_to_1, round_to_price_unit
 
 from common.time_delay import precise_time_trigger, check_market_opening_time_morning, \
     check_market_opening_time_night
@@ -595,21 +595,16 @@ class SpreadTradingStrategy(BaseStrategy):
             if position_type == SPREAD_POSITION_TYPE_SHORT:
                 near_price = near_quote.lower_limit + (near_quote.pre_settlement - near_quote.lower_limit) * 0.1
                 far_price = far_quote.upper_limit - (far_quote.upper_limit - far_quote.pre_settlement) * 0.1
-                if self.price_tick_min == 10:
-                    near_price = round_to_10(near_price)
-                    far_price = round_to_10(far_price)
-                elif self.price_tick_min == 1:
-                    near_price = round_to_1(near_price)
-                    far_price = round_to_1(far_price)
+                # 转化为最小单位价格
+                near_price = round_to_price_unit(near_price, self.price_tick_min)
+                far_price = round_to_price_unit(far_price, self.price_tick_min)
+
             else:
                 near_price = near_quote.upper_limit - (near_quote.upper_limit - near_quote.pre_settlement) * 0.1
                 far_price = far_quote.lower_limit + (far_quote.pre_settlement - far_quote.lower_limit) * 0.1
-                if self.price_tick_min == 10:
-                    near_price = round_to_10(near_price)
-                    far_price = round_to_10(far_price)
-                elif self.price_tick_min == 1:
-                    near_price = round_to_1(near_price)
-                    far_price = round_to_1(far_price)
+                # 转化为最小单位价格
+                near_price = round_to_price_unit(near_price, self.price_tick_min)
+                far_price = round_to_price_unit(far_price, self.price_tick_min)
         else:
             order_type = OrderType.MARKET
             near_price = 0.0
@@ -1635,17 +1630,16 @@ class SpreadTradingStrategy(BaseStrategy):
         if self.exchange in [Exchange.SHFE, Exchange.INE]:
             order_type = OrderType.LIMIT
             if direction == Direction.LONG:
+                # 计算出接近涨跌停的价格，因为上期所没有市价
                 close_price = close_quote.upper_limit - (close_quote.upper_limit - close_quote.pre_settlement) * 0.1
-                if self.price_tick_min == 10:
-                    close_price = round_to_10(close_price)
-                elif self.price_tick_min == 1:
-                    close_price = round_to_1(close_price)
+                # 转化为最小单位价格
+                close_price = round_to_price_unit(close_price, self.price_tick_min)
+
+
             elif direction == Direction.SHORT:
                 close_price = close_quote.lower_limit + (close_quote.pre_settlement - close_quote.lower_limit) * 0.1
-                if self.price_tick_min == 10:
-                    close_price = round_to_10(close_price)
-                elif self.price_tick_min == 1:
-                    close_price = round_to_1(close_price)
+                # 转化为最小单位价格
+                close_price = round_to_price_unit(close_price, self.price_tick_min)
             else:
                 return ""
         else:
