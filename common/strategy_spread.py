@@ -7,7 +7,6 @@
 
 import copy
 import math
-import sys
 import threading
 from cmath import isnan
 from enum import Enum
@@ -22,6 +21,7 @@ import pandas as pd
 from tqsdk.objs import Quote
 
 from common.func_magic import print_msg_with_time_third, print_msg_with_time_fifth
+from common.func_num import round_to_10, round_to_1
 
 from common.time_delay import precise_time_trigger, check_market_opening_time_morning, \
     check_market_opening_time_night
@@ -34,8 +34,6 @@ from vnpy.event import Event
 if TYPE_CHECKING:
     from common.gateway_tq import BaseGatewayTq
 
-# 其他常量
-MAX_FLOAT = sys.float_info.max
 # 订单更新事件，用于注册
 EVENT_ERROR_ORDER = "eTqsdkOrder"
 # Quote更新事件，用于注册
@@ -67,28 +65,6 @@ class PositionStatus(Enum):
     OPENED = "已开仓"
     CLOSING = "平仓中"
     EXCEPTION = "仓位异常"
-
-def adjust_price(price: float) -> float:
-    """将异常的浮点数最大值（MAX_FLOAT）数据调整为0"""
-    if price == MAX_FLOAT:
-        price = 0
-    return price
-
-def round_to_10(x, mode="round"):
-    """
-    将数值规整为10的整数倍
-    :param x: 原始数值
-    :param mode: 取整规则：round(四舍五入)、floor(向下取整)、ceil(向上取整)
-    :return: 10的整数倍数值
-    """
-    if mode == "round":
-        return round(x / 10) * 10  # 四舍五入（如14→10，16→20）
-    elif mode == "floor":
-        return (x // 10) * 10      # 向下取整（如19→10，21→20）
-    elif mode == "ceil":
-        return ((x + 9) // 10) * 10 # 向上取整（如11→20，20→20）
-    else:
-        raise ValueError("mode只能是round/floor/ceil")
 
 class BaseStrategy(ABC):
 
@@ -620,14 +596,20 @@ class SpreadTradingStrategy(BaseStrategy):
                 near_price = near_quote.lower_limit + (near_quote.pre_settlement - near_quote.lower_limit) * 0.1
                 far_price = far_quote.upper_limit - (far_quote.upper_limit - far_quote.pre_settlement) * 0.1
                 if self.price_tick_min == 10:
-                    near_price = round_to_10(near_price, 'round')
-                    far_price = round_to_10(far_price, 'round')
+                    near_price = round_to_10(near_price)
+                    far_price = round_to_10(far_price)
+                elif self.price_tick_min == 1:
+                    near_price = round_to_1(near_price)
+                    far_price = round_to_1(far_price)
             else:
                 near_price = near_quote.upper_limit - (near_quote.upper_limit - near_quote.pre_settlement) * 0.1
                 far_price = far_quote.lower_limit + (far_quote.pre_settlement - far_quote.lower_limit) * 0.1
                 if self.price_tick_min == 10:
-                    near_price = round_to_10(near_price, 'round')
-                    far_price = round_to_10(far_price, 'round')
+                    near_price = round_to_10(near_price)
+                    far_price = round_to_10(far_price)
+                elif self.price_tick_min == 1:
+                    near_price = round_to_1(near_price)
+                    far_price = round_to_1(far_price)
         else:
             order_type = OrderType.MARKET
             near_price = 0.0
@@ -1655,11 +1637,15 @@ class SpreadTradingStrategy(BaseStrategy):
             if direction == Direction.LONG:
                 close_price = close_quote.upper_limit - (close_quote.upper_limit - close_quote.pre_settlement) * 0.1
                 if self.price_tick_min == 10:
-                    close_price = round_to_10(close_price, 'round')
+                    close_price = round_to_10(close_price)
+                elif self.price_tick_min == 1:
+                    close_price = round_to_1(close_price)
             elif direction == Direction.SHORT:
                 close_price = close_quote.lower_limit + (close_quote.pre_settlement - close_quote.lower_limit) * 0.1
                 if self.price_tick_min == 10:
-                    close_price = round_to_10(close_price, 'round')
+                    close_price = round_to_10(close_price)
+                elif self.price_tick_min == 1:
+                    close_price = round_to_1(close_price)
             else:
                 return ""
         else:
