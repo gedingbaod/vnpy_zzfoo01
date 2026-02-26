@@ -44,7 +44,7 @@ EVENT_SEND_TEST_CLOSE_SHORT = 'eSendTestEventCloseShort'
 EVENT_SEND_TEST_OPEN_LONG = 'eSendTestEventOpenLong'
 EVENT_SEND_TEST_CLOSE_LONG = 'eSendTestEventCloseLong'
 EVENT_SEND_TEST_TIMEOUT = 'eSendTestEventTimeout'
-EVENT_SEND_TEST_START = 'eSendTestEventStart'
+EVENT_SEND_TEST_START = 'eSendTestEventAll'
 # 空差持仓
 SPREAD_POSITION_TYPE_SHORT = "spread_short"
 # 多差持仓

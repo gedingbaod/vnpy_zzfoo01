@@ -14,9 +14,18 @@ from tqsdk.objs import Quote
 
 from common.vnpy_time import split_cross_day_time
 
+from vnpy.event import Event
 
 from common.strategy_spread import BaseStrategy, SPREAD_POSITION, SPREAD_POSITION_TYPE, SPREAD_POSITION_TYPE_SHORT, \
     SPREAD_POSITION_TYPE_LONG
+
+# 导入 MongoDB 保存功能
+try:
+    from mongodb.save_position import save_positions_to_mongodb
+    MONGODB_SAVE_AVAILABLE = True
+except ImportError:
+    MONGODB_SAVE_AVAILABLE = False
+    print("警告：无法导入 MongoDB 保存模块，持仓历史将不会保存到数据库")
 
 # 收盘前多少分钟停止交易
 CLOSE_BEFORE_MINUTE = 15
@@ -241,6 +250,7 @@ class RiskManager:
         打印历史持仓记录
 
         将self.strategy.history_position的内容格式化输出到日志
+        同时保存到 MongoDB（如果可用）
         """
 
         # 先打印当前持仓现状
@@ -262,10 +272,21 @@ class RiskManager:
 
         for idx, position in enumerate(history, 1):
             output_lines.append(f"---------- 记录 {idx} ----------")
-
             output_lines.extend(output_position(position))
 
         output_lines.append("========== 历史持仓记录打印完成 ==========")
+
+        # 批量保存到 MongoDB（如果可用）
+        if MONGODB_SAVE_AVAILABLE and history:
+            try:
+                save_result = save_positions_to_mongodb(list(history))
+                output_lines.append(
+                    f"========== MongoDB 保存统计: 新增 {save_result['inserted']} 条，"
+                    f"跳过 {save_result['skipped']} 条，"
+                    f"总计 {save_result['total']} 条 =========="
+                )
+            except Exception as e:
+                self.strategy.gateway.write_log(f"批量保存持仓记录到 MongoDB 失败: {str(e)}")
 
         # 一次性输出
         self.strategy.gateway.write_log("\n".join(output_lines))
