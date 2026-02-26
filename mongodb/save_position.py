@@ -4,20 +4,62 @@
 """
 
 from datetime import datetime
+from enum import Enum
 from pymongo import MongoClient
 from pymongo.errors import DuplicateKeyError
+from vnpy.trader.setting import SETTINGS
 
 # ================== 配置信息 ==================
 USER_URI = "mongodb://vnpyUser:123456@192.168.31.28:27017/vnpy_position?authSource=admin"
 TARGET_DB = "vnpy_position"
 COLLECTION_NAME = "spread_position_history"
+COLLECTION_NAME_TEST = "spread_position_history_test"
 
 # 在模块顶部初始化一次
 client = MongoClient(USER_URI)
 
 def get_collection():
     db = client[TARGET_DB]
-    return db[COLLECTION_NAME]
+    mode = SETTINGS.get("spread.mode", "")
+    if mode == "test":
+        collection_name = COLLECTION_NAME_TEST
+    else:
+        collection_name = COLLECTION_NAME
+    return db[collection_name]
+
+
+def convert_enum_to_value(obj):
+    """
+    递归地将对象中的枚举类型转换为可序列化的值
+
+    Parameters
+    ----------
+    obj : any
+        任意对象
+
+    Returns
+    -------
+    any
+        转换后的对象
+    """
+    import enum
+    from datetime import datetime, date, time
+
+    if isinstance(obj, enum.Enum):
+        # 枚举类型：返回 value
+        return obj.value
+    elif isinstance(obj, dict):
+        # 字典：递归处理每个值
+        return {k: convert_enum_to_value(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        # 列表或元组：递归处理每个元素
+        return type(obj)(convert_enum_to_value(item) for item in obj)
+    elif isinstance(obj, (datetime, date, time)):
+        # 日期时间类型：转换为 ISO 格式字符串
+        return obj.isoformat()
+    else:
+        # 其他类型：保持不变
+        return obj
 
 
 def save_position_to_mongodb(position: dict) -> bool:
@@ -69,6 +111,9 @@ def save_position_to_mongodb(position: dict) -> bool:
         position_copy = position.copy()
         position_copy["saved_at"] = datetime.now().isoformat()
 
+        # 转换枚举类型为可序列化的值
+        position_copy = convert_enum_to_value(position_copy)
+
         # 使用 update_one with upsert=True 实现去重插入
         # $setOnInsert: 只在插入新文档时设置字段，已存在时不更新
         result = collection.update_one(
@@ -79,10 +124,10 @@ def save_position_to_mongodb(position: dict) -> bool:
 
         # 判断是插入还是跳过
         if result.upserted_id is not None:
-            print(f"✅ 持仓记录已保存: {near_symbol}/{far_symbol} {open_start_time}")
+            # print(f"✅ 持仓记录已保存: {near_symbol}/{far_symbol} {open_start_time}")
             return True
         else:
-            print(f"ℹ️ 持仓记录已存在，跳过: {near_symbol}/{far_symbol} {open_start_time}")
+            # print(f"ℹ️ 持仓记录已存在，跳过: {near_symbol}/{far_symbol} {open_start_time}")
             return False
 
     except DuplicateKeyError:
@@ -130,7 +175,7 @@ def save_positions_to_mongodb(positions: list) -> dict:
         "total": len(positions)
     }
 
-    print(f"\n📊 批量保存完成: 插入 {result['inserted']} 条，跳过 {result['skipped']} 条，总计 {result['total']} 条")
+    # print(f"\n📊 批量保存完成: 插入 {result['inserted']} 条，跳过 {result['skipped']} 条，总计 {result['total']} 条")
 
     return result
 
@@ -220,6 +265,13 @@ if __name__ == "__main__":
             "near_symbol": "ni2603",
             "far_symbol": "ni2605",
             "open_start_time": "2026-02-26 11:00:00",
+            "position_status": "OPEN",
+            "test": True
+        },
+        {
+            "near_symbol": "ni2603",
+            "far_symbol": "ni2605",
+            "open_start_time": "2026-02-26 12:00:00",
             "position_status": "OPEN",
             "test": True
         }

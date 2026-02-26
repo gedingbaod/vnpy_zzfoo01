@@ -6,7 +6,10 @@ ADMIN_URI = "mongodb://rootAdmin:123456@192.168.31.28:27017/?authSource=admin"
 NEW_USER = "vnpyUser"
 NEW_PWD = "123456"
 TARGET_DB = "vnpy_position"
-COLLECTIONS = ["spread_position_history", "test"]   # 需要确保存在的集合
+COLLECTIONS = ["spread_position_history", "spread_position_history_test", "test"]   # 需要确保存在的集合
+
+COLLECTION_PRODUCT = "spread_position_history"
+COLLECTION_TEST = "spread_position_history_test"
 
 # ================== 1. 以管理员身份连接 ==================
 admin_client = MongoClient(ADMIN_URI)
@@ -98,10 +101,8 @@ def check_coll_test():
 
 check_coll_test()
 
-def check_coll_spread():
+def check_coll_spread(collection_name: str):
     # 创建集合（表）
-    collection_name = "spread_position_history"
-
     # 检查集合是否已存在
     existing_collections = test_db.list_collection_names()
     if collection_name in existing_collections:
@@ -163,8 +164,9 @@ def check_coll_spread():
 
         except Exception as e:
             print(f"测试插入失败: {str(e)}")
-check_coll_spread()
 
+check_coll_spread(COLLECTION_PRODUCT)
+check_coll_spread(COLLECTION_TEST)
 # 关闭连接
 admin_client.close()
 user_client.close()

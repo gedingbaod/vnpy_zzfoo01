@@ -190,13 +190,13 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         self.add_action(
             help_menu,
-            _("发送整体测试启动信号"),
+            _("整体测试"),
             get_icon_path(__file__, "email.ico"),
             self.send_test_event_start
         )
         self.add_action(
             help_menu,
-            _("发送打印历史信号"),
+            _("打印历史信息"),
             get_icon_path(__file__, "email.ico"),
             self.send_test_print_history
         )

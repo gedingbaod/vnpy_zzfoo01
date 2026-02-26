@@ -3,7 +3,7 @@
 包含收盘时间检查、强制平仓等风险控制功能
 """
 
-from __future__ import annotations
+# from __future__ import annotations
 
 import threading
 from datetime import datetime, timedelta, time
@@ -141,7 +141,7 @@ class RiskManager:
                     self.strategy.gateway.write_log("收盘前强制平仓")
                     self.strategy.close_position(force=True)
 
-                self.print_history_position()
+                self.save_history_to_mongodb()
 
             except Exception as e:
                 if self.active:
@@ -242,6 +242,15 @@ class RiskManager:
             self.strategy.gateway.write_log(f"检查涨跌停异常: {str(e)}")
             return False
 
+    def save_history_to_mongodb(self):
+        # 批量保存到 MongoDB（如果可用）
+        history = self.strategy.history_position
+        if MONGODB_SAVE_AVAILABLE and history:
+            try:
+                save_result = save_positions_to_mongodb(list(history))
+            except Exception as e:
+                self.strategy.gateway.write_log(f"批量保存持仓记录到 MongoDB 失败: {str(e)}")
+
     def callback_priprint_history_position(self, event: Event):
         self.print_history_position()
 
@@ -275,18 +284,6 @@ class RiskManager:
             output_lines.extend(output_position(position))
 
         output_lines.append("========== 历史持仓记录打印完成 ==========")
-
-        # 批量保存到 MongoDB（如果可用）
-        if MONGODB_SAVE_AVAILABLE and history:
-            try:
-                save_result = save_positions_to_mongodb(list(history))
-                output_lines.append(
-                    f"========== MongoDB 保存统计: 新增 {save_result['inserted']} 条，"
-                    f"跳过 {save_result['skipped']} 条，"
-                    f"总计 {save_result['total']} 条 =========="
-                )
-            except Exception as e:
-                self.strategy.gateway.write_log(f"批量保存持仓记录到 MongoDB 失败: {str(e)}")
 
         # 一次性输出
         self.strategy.gateway.write_log("\n".join(output_lines))
