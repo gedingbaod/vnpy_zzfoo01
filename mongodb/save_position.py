@@ -7,6 +7,8 @@ from datetime import datetime
 from enum import Enum
 from pymongo import MongoClient
 from pymongo.errors import DuplicateKeyError
+
+from common.vnpy_time import get_now_str
 from vnpy.trader.setting import SETTINGS
 
 # ================== 配置信息 ==================
@@ -132,10 +134,10 @@ def save_position_to_mongodb(position: dict) -> bool:
 
     except DuplicateKeyError:
         # 理论上不会走到这里，因为已经用了 upsert
-        print(f"ℹ️ 持仓记录已存在（重复键）: {position.get('near_symbol')}/{position.get('far_symbol')}")
+        print(f"ℹ️ 持仓记录已存在（重复键）: {position.get('near_symbol')}/{position.get('far_symbol')} at {get_now_str()}")
         return False
     except Exception as e:
-        print(f"❌ 保存持仓记录失败: {str(e)}")
+        print(f"❌ 保存持仓记录失败: {str(e)} at {get_now_str()}")
         import traceback
         traceback.print_exc()
         return False
