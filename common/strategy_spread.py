@@ -390,7 +390,7 @@ class SpreadTradingStrategy(BaseStrategy):
             # 存储前值
 
             self.current_spread_indicator = (mean, std, upper_bound, lower_bound, dynamic_slippage_points)
-            print_msg_with_time_fifth(f'指标：{str(self.current_spread_indicator)}', self.gateway.write_log)
+            print_msg_with_time_fifth(f'---计算指标：{str(self.current_spread_indicator)}', self.gateway.write_log)
             return self.current_spread_indicator
 
         else:
@@ -509,13 +509,13 @@ class SpreadTradingStrategy(BaseStrategy):
             if check_market_opening_time_morning():
             # if True:
                 self._spread_open_short_delay(near_quote,far_quote,"09:00:00.001000")
-                self.gateway.write_log(f"早盘延时开仓: {real_short_spread} > {upper_bound} 动态滑点{dynamic_slippage_points}")
+                self.gateway.write_log(f"========早盘延时开仓: {real_short_spread} > {upper_bound} 动态滑点{dynamic_slippage_points}")
             elif check_market_opening_time_night():
                 self._spread_open_short_delay(near_quote,far_quote,"21:00:00.001000")
-                self.gateway.write_log(f"夜盘延时开仓: {real_short_spread} > {upper_bound} 动态滑点{dynamic_slippage_points}")
+                self.gateway.write_log(f"========夜盘延时开仓: {real_short_spread} > {upper_bound} 动态滑点{dynamic_slippage_points}")
             else:
                 self._spread_open_short(near_quote, far_quote)
-                self.gateway.write_log(f"做空价差开仓: {real_short_spread} > {upper_bound} 动态滑点{dynamic_slippage_points}")
+                self.gateway.write_log(f"========做空价差开仓: {real_short_spread} > {upper_bound} 动态滑点{dynamic_slippage_points}")
             return
 
         # 做多价差：价差过低
@@ -524,13 +524,13 @@ class SpreadTradingStrategy(BaseStrategy):
             if check_market_opening_time_morning():
             # if True:
                 self._spread_open_long_delay(near_quote,far_quote,"09:00:00.001000")
-                self.gateway.write_log(f"早盘延时开仓: {real_long_spread} < {lower_bound} 动态滑点{dynamic_slippage_points}")
+                self.gateway.write_log(f"========早盘延时开仓: {real_long_spread} < {lower_bound} 动态滑点{dynamic_slippage_points}")
             elif check_market_opening_time_night():
                 self._spread_open_long_delay(near_quote,far_quote,"21:00:00.001000")
-                self.gateway.write_log(f"夜盘延时开仓: {real_long_spread} < {lower_bound} 动态滑点{dynamic_slippage_points}")
+                self.gateway.write_log(f"========夜盘延时开仓: {real_long_spread} < {lower_bound} 动态滑点{dynamic_slippage_points}")
             else:
                 self._spread_open_long(near_quote, far_quote)
-                self.gateway.write_log(f"做多价差开仓: {real_long_spread} < {lower_bound} 动态滑点{dynamic_slippage_points}")
+                self.gateway.write_log(f"========做多价差开仓: {real_long_spread} < {lower_bound} 动态滑点{dynamic_slippage_points}")
             return
 
     def _find_close_opportunity(self, near_quote: Quote, far_quote: Quote):
