@@ -64,6 +64,7 @@ class PositionStatus(Enum):
     OPENING = "开仓中"
     OPENED = "已开仓"
     CLOSING = "平仓中"
+    WAITING = "等待"
     EXCEPTION = "仓位异常"
 
 class BaseStrategy(ABC):
@@ -190,6 +191,7 @@ class SpreadTradingStrategy(BaseStrategy):
         self.klines_windows = 20       # kline的计算窗口，请求时会请求双倍数据
         self.klines_duration = 1 * 60  # kline的请求周期
         self.price_tick_min = 1        # 一跳的最小变动价格
+        self.open_delay_sec = 15       # 开仓状态延时设置秒数，减少行情波动影响
 
         # 计算成本用(均值，方差，上边界，下边界，动态滑点）
         self.current_spread_indicator = None
@@ -1038,7 +1040,11 @@ class SpreadTradingStrategy(BaseStrategy):
         # TradeData由gateway里的onRtnOrder封装出来
         # 启动时，这里会更新当日的所有成交信息
         try:
-            self.gateway.write_log(f'成交数据：{trade}')
+            # 只打印本应用的合约
+            if trade.symbol[0:2] == self.near_symbol[0:2]:
+                receive_time = get_now_str()
+                self.gateway.write_log(f'成交数据 at {receive_time}：\n{trade}')
+
             vt_orderid: str = trade.vt_orderid
             price: float = trade.price
 
@@ -1178,11 +1184,14 @@ class SpreadTradingStrategy(BaseStrategy):
                     # 检查配对订单是否也成交
                     if position["near_open_status"] == Status.ALLTRADED and position["far_open_status"] == Status.ALLTRADED:
                         # 两条腿都成交，开仓或平仓完成，更新持仓状态
-                        self.gateway.write_log(f"价差订单对：=={self.near_symbol} {self.far_symbol}== 开仓完成")
-                        self.spread_position[POSITION_STATUS] = PositionStatus.OPENED
-                        self.spread_position["open_finish_time"] = receive_time
-
+                        with self.position_lock:
+                            # self.spread_position[POSITION_STATUS] = PositionStatus.OPENED
+                            self.spread_position[POSITION_STATUS] = PositionStatus.WAITING
+                            self.spread_position["open_finish_time"] = receive_time
+                        self.gateway.write_log(f"价差订单对：=={self.near_symbol} {self.far_symbol}== 开仓完成，设置延时")
                         # 这里限制N秒内不平仓
+                        # 15秒后将状态设置为 OPENED
+                        threading.Timer(self.open_delay_sec, self._set_position_opened).start()
 
                     elif (position.get("near_open_status") in [Status.REJECTED, Status.CANCELLED]
                         and position.get("far_open_status") == Status.ALLTRADED ):
@@ -1314,6 +1323,26 @@ class SpreadTradingStrategy(BaseStrategy):
             self.gateway.write_log(f"订单状态更新异常: {str(e)}")
             import traceback
             traceback.print_exc()
+
+    def _set_position_opened(self) -> None:
+        """
+        将持仓状态设置为 OPENED
+
+        此方法由 threading.Timer 延迟调用（15秒后）
+        确保开仓后有足够的时间让价差稳定，避免过早平仓
+        """
+        try:
+            with self.position_lock:
+                # 只有当前状态是 WAITING 时才设置为 OPENED
+                if self.spread_position.get(POSITION_STATUS) == PositionStatus.WAITING:
+                    self.spread_position[POSITION_STATUS] = PositionStatus.OPENED
+                    self.gateway.write_log(
+                        f"持仓状态已从 WAITING 更新为 OPENED: "
+                        f"{self.near_symbol}/{self.far_symbol}"
+                    )
+                # 如果已经是其他状态（如 CLOSING），则不修改
+        except Exception as e:
+            self.gateway.write_log(f"设置持仓状态为 OPENED 失败: {str(e)}")
 
     def clear_position_data(self) -> None:
         # 不算仓位状态，共30个属性
