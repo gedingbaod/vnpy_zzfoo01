@@ -464,6 +464,8 @@ class SpreadTradingStrategy(BaseStrategy):
                 self._find_close_opportunity(near_quote, far_quote)
             elif self.spread_position[POSITION_STATUS] is PositionStatus.EXCEPTION:
                 pass
+            elif self.spread_position[POSITION_STATUS] is PositionStatus.WAITING:
+                pass
             else:
                 # 不是开平仓结束的情况下才有必要判断，即OPENING，CLOSING
                 # 风控检查3：待成交订单检查
