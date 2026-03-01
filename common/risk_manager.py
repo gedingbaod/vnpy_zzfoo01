@@ -339,6 +339,19 @@ def output_position(position: dict, is_current = False) -> list[str]:
     if status_parts:
         output_lines.append(f"  {'  '.join(status_parts)}")
 
+    # 服务器时间（一行4个）
+    servertime_parts: list[str] = []
+    if position.get("near_open_servertime"):
+        servertime_parts.append(f"近月开仓服务器时间: {position.get('near_open_servertime')}")
+    if position.get("far_open_servertime"):
+        servertime_parts.append(f"远月开仓服务器时间: {position.get('far_open_servertime')}")
+    if position.get("near_close_servertime"):
+        servertime_parts.append(f"近月平仓服务器时间: {position.get('near_close_servertime')}")
+    if position.get("far_close_servertime"):
+        servertime_parts.append(f"远月平仓服务器时间: {position.get('far_close_servertime')}")
+    if servertime_parts:
+        output_lines.append(f"  {'  '.join(servertime_parts)}")
+
     # 合约信息
     if position.get("near_symbol"):
         output_lines.append(f"  近月合约: {position.get('near_symbol')}")

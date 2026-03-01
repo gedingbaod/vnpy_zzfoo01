@@ -27,7 +27,7 @@ def get_now_1000ns():
 def get_now_ns():
     return time.time_ns()
 
-# 完全替代 datetime.now().timestamp()，性能提升8~10倍
+# 完全替代 datetime.now().timestamp()，性能提升8~10倍  # 1772336623.4830766  返回单位：秒
 def get_timestamp():
     return time.time()
 
@@ -85,13 +85,13 @@ if __name__ == '__main__':
     split_arr = split_cross_day_time(original_arr)
     print("拆分后的数组：", split_arr)
 
-    print(datetime.now().timestamp())
-    print(get_now_micro())
-    print(get_now_ns())
+    print(f'datetime.now().timestamp() {datetime.now().timestamp()}')
+    print(f'get_now_micro() {get_now_micro()}')
+    print(f'get_now_ns() {get_now_ns()}')
     a = get_timestamp()
     b = datetime.now().timestamp()
     print(type(a))
     print(type(b))
-    print(a)
-    print(b)
+    print(f'get_timestamp() {get_timestamp()}')
+    print(f'datetime.now().timestamp() {datetime.now().timestamp()}')
     print(a > b)
