@@ -15,7 +15,7 @@ from tqsdk import TqApi, TqAuth
 from common.func_magic import print_msg_with_time_once,print_msg_with_time_fifth,print_msg_with_time_twentieth
 from common.gateway_tq import BaseGatewayTq
 from common.risk_manager import RiskManager
-from common import strategy_spread as strategy_spread_module
+from common import strategy_spread_entities as strategy_spread_module
 from vnpy.event import Event
 from common.strategy_spread import EVENT_UPDATE_QUOTE
 from vnpy.trader.constant import (
