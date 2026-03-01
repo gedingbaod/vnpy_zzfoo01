@@ -76,3 +76,7 @@ lab/
 /mycode/tick_log.txt
 /vnpy_ctptqtts/vnpy_ctptqtts/api/vnctpmd.cp312-win_amd64.lib
 /vnpy_ctptqtts/vnpy_ctptqtts/api/vnctptd.cp312-win_amd64.lib
+/vnpy_ctptesttq/vnpy_ctptesttq/api/meson-private/coredata.dat.prev
+/vnpy_ctptesttq/vnpy_ctptesttq/api/meson-private/python-3.13-installed.json
+/vnpy_ctptesttq/vnpy_ctptesttq/api/vnctpmd.cp313-win_amd64.lib
+/vnpy_ctptesttq/vnpy_ctptesttq/api/vnctptd.cp313-win_amd64.lib
