@@ -3,7 +3,6 @@
 *.pyo
 *.pyd
 *.egg-info/
-*.dat.prev
 
 # Jupyter
 .ipynb_checkpoints
@@ -77,4 +76,3 @@ lab/
 /mycode/tick_log.txt
 /vnpy_ctptqtts/vnpy_ctptqtts/api/vnctpmd.cp312-win_amd64.lib
 /vnpy_ctptqtts/vnpy_ctptqtts/api/vnctptd.cp312-win_amd64.lib
-
