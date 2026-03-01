@@ -187,11 +187,12 @@ class SpreadTradingStrategy(BaseStrategy):
         self.min_profit_points = 10    # 基本利润（最小盈利）
         self.slippage_points = 3 * 4   # 做一次差价就是4次下单，一次滑点设为3
         self.commission_point = 16     # 做一次差价开平的手续费成本,240，一跳15元
+        self.price_tick_min = 1        # 一跳的最小变动价格
+        self.open_delay_sec = 15       # 开仓状态延时设置秒数，减少行情波动影响
+        # K线计算规则
         self.klines_std_k = 3          # 计算标准差倍数，用于计算上下轨
         self.klines_windows = 20       # kline的计算窗口，请求时会请求双倍数据
         self.klines_duration = 1 * 60  # kline的请求周期
-        self.price_tick_min = 1        # 一跳的最小变动价格
-        self.open_delay_sec = 15       # 开仓状态延时设置秒数，减少行情波动影响
 
         # 计算成本用(均值，方差，上边界，下边界，动态滑点）
         self.current_spread_indicator = None
