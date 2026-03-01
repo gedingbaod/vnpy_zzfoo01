@@ -128,10 +128,10 @@ class RiskManager:
                 self.interrupt_event.wait(300)
 
                 # 检查价格限制
-                rt_price_limit = self._check_price_limit()
+                rt_price_limit = self._check_price_limit_rm02()
 
                 # 临时使用近月合约，后期可以再优化
-                rt_closing_time = self._check_closing_time()
+                rt_closing_time = self._check_closing_time_rm01()
 
                 # 逻辑与，全为True，结果为True
                 self.strategy.is_tradable = (not rt_closing_time) and (not rt_price_limit)
@@ -150,7 +150,7 @@ class RiskManager:
 
         print("风险管理线程关闭")
 
-    def _check_closing_time(self) -> bool:
+    def _check_closing_time_rm01(self) -> bool:
         """
         判断是否处于收盘前15分钟
 
@@ -198,7 +198,7 @@ class RiskManager:
 
         return False
 
-    def _check_price_limit(self) -> bool:
+    def _check_price_limit_rm02(self) -> bool:
         """
         检查是否接近涨跌停
 
@@ -318,7 +318,7 @@ def output_position(position: dict, is_current = False) -> list[str]:
     if position.get("near_open_order_id"):
         order_id_parts.append(f"近月开仓订单ID: {position.get('near_open_order_id')}")
     if position.get("far_open_order_id"):
-        order_id_parts.append(f"远月开仓订单ID: {position.get('far_open_order_id')}")
+        order_id_parts.append(f"远月开仓订单ID: {position.get('far_open_order_id')}\n")
     if position.get("near_close_order_id"):
         order_id_parts.append(f"近月平仓订单ID: {position.get('near_close_order_id')}")
     if position.get("far_close_order_id"):
@@ -344,7 +344,7 @@ def output_position(position: dict, is_current = False) -> list[str]:
     if position.get("near_open_servertime"):
         servertime_parts.append(f"近月开仓服务器时间: {position.get('near_open_servertime')}")
     if position.get("far_open_servertime"):
-        servertime_parts.append(f"远月开仓服务器时间: {position.get('far_open_servertime')}")
+        servertime_parts.append(f"远月开仓服务器时间: {position.get('far_open_servertime')}\n")
     if position.get("near_close_servertime"):
         servertime_parts.append(f"近月平仓服务器时间: {position.get('near_close_servertime')}")
     if position.get("far_close_servertime"):
@@ -353,10 +353,13 @@ def output_position(position: dict, is_current = False) -> list[str]:
         output_lines.append(f"  {'  '.join(servertime_parts)}")
 
     # 合约信息
+    symbols: list[str] = []
     if position.get("near_symbol"):
-        output_lines.append(f"  近月合约: {position.get('near_symbol')}")
+        symbols.append(f"近月合约: {position.get('near_symbol')}")
     if position.get("far_symbol"):
-        output_lines.append(f"  远月合约: {position.get('far_symbol')}")
+        symbols.append(f"远月合约: {position.get('far_symbol')}")
+    if symbols:
+        output_lines.append(f"  {'  '.join(symbols)}")
 
     # 手数信息（一行4个）
     volume_parts: list[str] = []
@@ -378,7 +381,7 @@ def output_position(position: dict, is_current = False) -> list[str]:
     if position.get("far_open_price1") is not None:
         open_price_parts.append(f"远月开仓发送价: {position.get('far_open_price1')}")
     if position.get("near_open_price") is not None:
-        open_price_parts.append(f"    近月开仓成交价: {position.get('near_open_price')}")
+        open_price_parts.append(f"  近月开仓成交价: {position.get('near_open_price')}")
     if position.get("far_open_price") is not None:
         open_price_parts.append(f"远月开仓成交价: {position.get('far_open_price')}")
     if open_price_parts:
