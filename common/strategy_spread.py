@@ -1330,6 +1330,9 @@ class SpreadTradingStrategy(BaseStrategy):
             elif status in [Status.NOTTRADED, Status.SUBMITTING]:
                 # self.gateway.write_log(f"订单{vt_orderid}状态{status}")
                 pass
+            # 只打印本应用的合约
+            if order.symbol[0:2] == self.near_symbol[0:2]:
+                self.gateway.write_log(f'订单信息 at {receive_time}：\n{order}')
 
         except Exception as e:
             self.gateway.write_log(f"订单状态更新异常: {str(e)}")
