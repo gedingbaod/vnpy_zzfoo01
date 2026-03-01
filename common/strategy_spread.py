@@ -1048,8 +1048,6 @@ class SpreadTradingStrategy(BaseStrategy):
                     self._cancel_order(order_id_near, False)
                 if order_id_far:
                     self._cancel_order(order_id_far, False)
-                # if SPREAD_POSITION in self.global_position:
-                #     del self.global_position[SPREAD_POSITION]
 
         except Exception as e:
             self.gateway.write_log(f"做多价差开仓异常: {str(e)}")
@@ -1327,11 +1325,6 @@ class SpreadTradingStrategy(BaseStrategy):
                         # 单腿成交则清空仓位
                         self._handle_partial_fill_rm05()
 
-                # # 从待成交订单中移除
-                # if vt_orderid in self.pending_orders:
-                #     del self.pending_orders[vt_orderid]
-                #     self.gateway.write_log(f"价差订单异常:{vt_orderid}，从pending_order移除")
-
             elif status == Status.PARTTRADED:
                 self.gateway.write_log(f"订单{vt_orderid}状态{status} 完成手数{order.volume}")
             elif status in [Status.NOTTRADED, Status.SUBMITTING]:
@@ -1534,11 +1527,6 @@ class SpreadTradingStrategy(BaseStrategy):
                     self.spread_position["far_close_order_id"] = far_close_order_id
 
             self._exception_process()
-
-
-            # # 清空持仓
-            # if SPREAD_POSITION in self.global_position:
-            #     del self.global_position[SPREAD_POSITION]
 
         except Exception as e:
             self.gateway.write_log(f"紧急平仓异常: {str(e)}")
