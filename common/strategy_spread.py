@@ -1040,11 +1040,7 @@ class SpreadTradingStrategy(BaseStrategy):
         # TradeData由gateway里的onRtnOrder封装出来
         # 启动时，这里会更新当日的所有成交信息
         try:
-            # 只打印本应用的合约
-            if trade.symbol[0:2] == self.near_symbol[0:2]:
-                receive_time = get_now_str()
-                self.gateway.write_log(f'成交数据 at {receive_time}：\n{trade}')
-
+            receive_time = get_now_str()
             vt_orderid: str = trade.vt_orderid
             price: float = trade.price
 
@@ -1107,6 +1103,11 @@ class SpreadTradingStrategy(BaseStrategy):
             if not is_open_set and not is_close_set and not is_h_close_set:
                 time_str = get_now_str()
                 self.gateway.write_log(f"什么都没有找到 at {time_str}")
+
+            # 只打印本应用的合约
+            if trade.symbol[0:2] == self.near_symbol[0:2]:
+                self.gateway.write_log(f'成交数据 at {receive_time}：\n{trade}')
+
         except Exception as e:
             self.gateway.write_log(f"订单状态更新异常: {str(e)}")
             import traceback
