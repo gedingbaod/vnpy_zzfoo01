@@ -85,6 +85,8 @@ class BaseStrategy(ABC):
         #   - far_yd_volume: 远月合约昨仓数量（用于判断平今/平昨）
         self.global_position: dict[str, dict] = defaultdict(dict)
         self.history_position: list[dict] = list()
+        # 仓位锁，用于修改仓位状态时保证不被并发影响
+        self.position_lock = threading.Lock()
 
         # 待成交订单字典
         # 结构：{vt_order_id: {...}}
@@ -858,9 +860,9 @@ class SpreadTradingStrategy(BaseStrategy):
                 reference=f"spread_short_far_{self.far_symbol}"
             )
             order_id_far = self.gateway.send_order(req_far)
-            self.gateway.write_log(f"做空价差开仓订单已发送:\n"
-                                   f"  near_open_order: {order_id_near}, near_open_bid_price1: {near_quote.bid_price1},"
-                                   f" far_open_order: {order_id_far}, far_open_ask_price1: {far_quote.ask_price1} ")
+
+            send_time = get_now_str()
+
             if order_id_near and order_id_far:
                 # 记录待成交订单（用于超时检查和状态跟踪）
                 create_time = get_timestamp()
@@ -886,7 +888,7 @@ class SpreadTradingStrategy(BaseStrategy):
                     POSITION_STATUS: PositionStatus.OPENING,
                     SPREAD_POSITION_TYPE: SPREAD_POSITION_TYPE_SHORT,  # 持仓类型
                     "open_send_spread": near_quote.bid_price1 - far_quote.ask_price1,        # 开仓时的价差
-                    "open_start_time": get_now_str(),  # 开仓时间
+                    "open_start_time": send_time,  # 开仓时间
                     "near_symbol": self.near_symbol,
                     "far_symbol": self.far_symbol,
                     "near_open_order_id": order_id_near,  # 近月订单ID
@@ -897,7 +899,9 @@ class SpreadTradingStrategy(BaseStrategy):
                     "far_volume": self.transaction_volume,
                 })
 
-
+                self.gateway.write_log(f"做空价差开仓订单已发送 at {send_time}:\n"
+                                       f"  near_open_order: {order_id_near}, near_open_bid_price1: {near_quote.bid_price1},"
+                                       f" far_open_order: {order_id_far}, far_open_ask_price1: {far_quote.ask_price1} ")
             else:
                 self.gateway.write_log("做空价差开仓失败")
                 # 清理部分订单（如果有一个订单发送成功，另一个失败）
@@ -907,6 +911,8 @@ class SpreadTradingStrategy(BaseStrategy):
                     self._cancel_order(order_id_near, False)
                 # if SPREAD_POSITION in self.global_position:
                 #     del self.global_position[SPREAD_POSITION]
+
+
 
         except Exception as e:
             self.gateway.write_log(f"做空价差开仓异常: {str(e)}")
