@@ -715,12 +715,6 @@ class SpreadTradingStrategy(BaseStrategy):
                     f" far_close_order: {far_close_order_id}  far_close_bid_price1: {far_quote.bid_price1}")
             else:
                 self.gateway.write_log("平空差订单发送失败")
-                # 这里是否要取消订单
-                # 清理部分订单（如果有一个订单发送成功，另一个失败）
-                # if order_id_near:
-                #     self._cancel_order(order_id_near, False)
-                # if order_id_far:
-                #     self._cancel_order(order_id_far, False)
 
         except Exception as e:
             self.gateway.write_log(f"发送平空差仓订单异常: {str(e)}")
@@ -931,11 +925,11 @@ class SpreadTradingStrategy(BaseStrategy):
                                        f" far_open_order: {order_id_far}, far_open_ask_price1: {far_quote.ask_price1} ")
             else:
                 self.gateway.write_log("做空价差开仓失败")
-                # 清理部分订单（如果有一个订单发送成功，另一个失败）
-                if order_id_near:
-                    self._cancel_order(order_id_near, False)
-                if order_id_far:
-                    self._cancel_order(order_id_far, False)
+                # # 清理部分订单（如果有一个订单发送成功，另一个失败）
+                # if order_id_near:
+                #     self._cancel_order(order_id_near, False)
+                # if order_id_far:
+                #     self._cancel_order(order_id_far, False)
 
         except Exception as e:
             self.gateway.write_log(f"做空价差开仓异常: {str(e)}")
@@ -1047,10 +1041,10 @@ class SpreadTradingStrategy(BaseStrategy):
             else:
                 self.gateway.write_log("做多价差开仓失败")
                 # 清理部分订单（如果有一个订单发送成功，另一个失败）
-                if order_id_near:
-                    self._cancel_order(order_id_near, False)
-                if order_id_far:
-                    self._cancel_order(order_id_far, False)
+                # if order_id_near:
+                #     self._cancel_order(order_id_near, False)
+                # if order_id_far:
+                #     self._cancel_order(order_id_far, False)
 
         except Exception as e:
             self.gateway.write_log(f"做多价差开仓异常: {str(e)}")
@@ -1470,7 +1464,7 @@ class SpreadTradingStrategy(BaseStrategy):
                         exchange=contract.exchange
                     )
                     self.gateway.cancel_order(req)
-                    self.gateway.write_log(f"撤销订单: {vt_orderid}")
+                    # self.gateway.write_log(f"撤销订单: {vt_orderid}")
 
                 # 从待成交订单中移除
                 if del_pending:
