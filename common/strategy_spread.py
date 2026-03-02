@@ -67,6 +67,8 @@ class PositionStatus(Enum):
     WAITING = "等待"
     EXCEPTION = "仓位异常"
 
+MARKET_PRICE_LIMIT_LIST =  [Exchange.SHFE, Exchange.INE, Exchange.DCE]
+
 class BaseStrategy(ABC):
 
     def __init__(self, gateway: "BaseGatewayTq"):
@@ -614,8 +616,8 @@ class SpreadTradingStrategy(BaseStrategy):
     def get_market_price(self, near_quote: Quote, far_quote: Quote, exchange: Exchange, position_type) -> tuple[
         Literal[OrderType.LIMIT, OrderType.MARKET], float, float]:
         # 两家上海的交易所不支持市价指令，使用涨跌停价回撤10%作为市价
-
-        if exchange in [Exchange.SHFE, Exchange.INE, Exchange.DCE]:
+        # 模拟交易中DCE也不支持市价单
+        if exchange in MARKET_PRICE_LIMIT_LIST:
             order_type = OrderType.LIMIT
             if position_type == SPREAD_POSITION_TYPE_SHORT:
                 near_price = near_quote.lower_limit + (near_quote.pre_settlement - near_quote.lower_limit) * 0.1
@@ -1557,7 +1559,7 @@ class SpreadTradingStrategy(BaseStrategy):
         else:
             return ""
 
-        if self.exchange in [Exchange.SHFE, Exchange.INE]:
+        if self.exchange in MARKET_PRICE_LIMIT_LIST:
             order_type = OrderType.LIMIT
             if direction == Direction.LONG:
                 # 计算出接近涨跌停的价格，因为上期所没有市价

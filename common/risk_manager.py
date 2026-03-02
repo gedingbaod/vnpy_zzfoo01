@@ -34,7 +34,7 @@ EXCHANGE_TRADE_TIME: dict[str, dict] = {
     "ni": {"day": [["09:00:00", "10:15:00"], ["10:30:00", "11:30:00"], ["13:30:00", "15:00:00"]], "night": [["21:00:00", "25:00:00"]]},
     "sn": {"day": [["09:00:00", "10:15:00"], ["10:30:00", "11:30:00"], ["13:30:00", "15:00:00"]], "night": [["21:00:00", "25:00:00"]]},
     "bz": {"day": [["09:00:00", "10:15:00"], ["10:30:00", "11:30:00"], ["13:30:00", "15:00:00"]], "night": [["21:00:00", "23:00:00"]]},
-    'si': {"day": [["09:00:00", "10:15:00"], ["10:30:00", "11:30:00"], ["13:30:00", "15:00:00"]], "night": [["21:00:00", "26:30:00"]]}
+    'si': {"day": [["09:00:00", "10:15:00"], ["10:30:00", "11:30:00"], ["13:30:00", "15:00:00"]]}
 }
 
 # 打印历史事件
@@ -398,9 +398,9 @@ def output_position(position: dict, is_current = False) -> list[str]:
     if position.get("near_close_price1") is not None:
         close_price_parts.append(f"近月平仓发送价: {position.get('near_close_price1')}")
     if position.get("far_close_price1") is not None:
-        close_price_parts.append(f"远月平仓发送价: {position.get('far_close_price1')}")
+        close_price_parts.append(f"远月平仓发送价: {position.get('far_close_price1')}\n")
     if position.get("near_close_price") is not None:
-        close_price_parts.append(f"    近月平仓成交价: {position.get('near_close_price')}")
+        close_price_parts.append(f"近月平仓成交价: {position.get('near_close_price')}")
     if position.get("far_close_price") is not None:
         close_price_parts.append(f"远月平仓成交价: {position.get('far_close_price')}")
     if close_price_parts:
