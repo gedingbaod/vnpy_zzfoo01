@@ -187,6 +187,9 @@ class RiskManager:
                 if end_str == '23:59:59' and len(periods) == 2:
                     # 夜盘的隔夜逻辑，在夜盘第一段，可以跳过'23:59:59'
                     continue
+                if end_str == "10:15:00" or end_str == "11:30:00":
+                    # 白盘上午和中午不暂停交易
+                    continue
 
                 start_time = time.fromisoformat(start_str)
                 end_time = time.fromisoformat(end_str)
