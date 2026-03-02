@@ -14,7 +14,7 @@ NS_125900 = 46740000000000
 NS_125959 = 46799900000000
 
 # NS_NOTE_BOOK_BIAS = 161200 * (10 ** 3)
-NS_NOTE_BOOK_BIAS = 250000 * (10 ** 3)
+NS_NOTE_BOOK_BIAS = 240000 * (10 ** 3)
 
 def check_market_opening_time_morning() -> bool:
     """
