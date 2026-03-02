@@ -270,7 +270,7 @@ class CtptqttsGateway(BaseGatewayTq):
         error_id: int = error["ErrorID"]
         error_msg: str = error["ErrorMsg"]
 
-        log_msg: str = f"{msg}，代码：{error_id}，信息：{error_msg}"
+        log_msg: str = f"错误信息：{msg}，代码：{error_id}，信息：{error_msg}"
         self.write_log(log_msg)
 
     def process_timer_event(self, event: Event) -> None:
@@ -582,7 +582,7 @@ class CtpTdApi(TdApi):
         self.gateway.on_order(order)
 
         self.gateway.write_error("交易委托失败", error)
-        self.gateway.write_error("交易委托失败详情", data)
+        self.gateway.write_log(f"交易委托失败详情：{data}")
 
     def onRspOrderAction(self, data: dict, error: dict, reqid: int, last: bool) -> None:
         """委托撤单失败回报"""
