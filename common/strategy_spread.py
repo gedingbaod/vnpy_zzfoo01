@@ -3,8 +3,6 @@
 包含白银跨期套利策略的实现
 """
 
-# from __future__ import annotations
-
 import copy
 import math
 import threading
@@ -366,6 +364,12 @@ class SpreadTradingStrategy(BaseStrategy):
         # 动态开仓成本线，用在上下轨，所以用于开仓的检查
         open_dynamic_spread_cost = self.static_spread_cost + dynamic_slippage_points * 2
 
+        # near_space = near_quote.ask_price1 - near_quote.bid_price1
+        # far_space = far_quote.ask_price1 - far_quote.bid_price1
+        # close_space_spread = abs(near_space) + abs(far_space)
+        # open_dynamic_spread_cost = close_space_spread
+
+
         # 计算klines价差
         near_klines = klines_sub[self.near_symbol]
         far_klines = klines_sub[self.far_symbol]
@@ -569,13 +573,19 @@ class SpreadTradingStrategy(BaseStrategy):
         # 盘口做多价差（可买入价差）= 近月卖价 - 远月买价
         quote_real_long_spread = near_quote.ask_price1 - far_quote.bid_price1
 
+        # 计算盘口空间差
+        near_space = near_quote.ask_price1 - near_quote.bid_price1
+        far_space = far_quote.ask_price1 - far_quote.bid_price1
+        close_space_spread = abs(near_space) + abs(far_space)
+        close_dynamic_spread_cost = dynamic_slippage_points * 2 + self.min_profit_points + self.commission_point
+        # 动态平仓成本，开仓时滑点是2倍，平仓时，这里选择1倍，主要还是以mean为准，动态成本用来控制风险
+        # 如果实际开仓差价开mean上，甚至小于mean，这个成本可以保证不亏。
+        # close_dynamic_spread_cost = abs(self.static_spread_cost) + abs(dynamic_slippage_points)
+
         # 发送开仓时盘口的差价
         open_send_spread = self.spread_position["open_send_spread"]
         # 开仓成交实际的差价
         open_real_spread = self.spread_position["open_real_spread"]
-        # 动态平仓成本，开仓时滑点是2倍，平仓时，这里选择1倍，主要还是以mean为准，动态成本用来控制风险
-        # 如果实际开仓差价开mean上，甚至小于mean，这个成本可以保证不亏。
-        close_dynamic_spread_cost = abs(self.static_spread_cost) + abs(dynamic_slippage_points)
         # rm08：动态平空价差，覆盖成本，这个地方减法会使价差更低     实际开空价差 - 动态平仓成本
         dynamic_close_short_spread = open_real_spread - close_dynamic_spread_cost
         # rm08：动态平多价差，覆盖成本，这个地方加法会使价差更高     实际开多价差 + 动态平仓成本
@@ -722,6 +732,7 @@ class SpreadTradingStrategy(BaseStrategy):
                         "far_close_order_id": far_close_order_id,
                         "near_close_price1": near_quote.ask_price1,
                         "far_close_price1": far_quote.bid_price1,
+                        # "close_send_indicator": self.current_spread_indicator,
                     })
 
                 self.gateway.write_log(f"平空差订单已发送 at {send_time}:\n"
@@ -806,11 +817,13 @@ class SpreadTradingStrategy(BaseStrategy):
                         "far_close_order_id": far_close_order_id,
                         "near_close_price1": near_quote.bid_price1,
                         "far_close_price1": far_quote.ask_price1,
+                        "close_send_indicator": self.current_spread_indicator,
                     })
 
                 self.gateway.write_log(f"平多差订单已发送 at {send_time}:\n"
                     f"near_close_order: {near_close_order_id} near_close_bid_price1: {near_quote.bid_price1} near_price: {near_price}\n"
-                    f" far_close_order: {far_close_order_id}  far_close_ask_price1: {far_quote.ask_price1}  far_price: {far_price}")
+                    f" far_close_order: {far_close_order_id}  far_close_ask_price1: {far_quote.ask_price1}  far_price: {far_price}\n"
+                    f"盘口指标：{self.current_spread_indicator}")
             else:
                 self.gateway.write_log("平多差订单发送失败")
 
@@ -1116,7 +1129,6 @@ class SpreadTradingStrategy(BaseStrategy):
                     and (h_position.get("far_close_price") is not None):
                 h_position["close_real_spread"] = h_position["near_close_price"] - h_position["far_close_price"]
                 # print(f'h close_real_spread: {h_position["close_real_spread"]}')
-
 
             if not is_open_set and not is_close_set and not is_h_close_set:
                 self.gateway.write_log(f"交易结果中未找到对应订单ID: {vt_orderid} at {receive_time}")

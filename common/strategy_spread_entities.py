@@ -32,13 +32,13 @@ class NiSpreadStrategy(SpreadTradingStrategy):
         super().__init__(gateway, near_symbol, far_symbol, Exchange.SHFE)
         #     "spread.near_symbol": "ni2603",
         #     "spread.far_symbol": "ni2605",
-        # 设置镍特定的策略参数
+        # 设置镍特定的策略参数   静态成本10+10+80=100
         self.transaction_volume = 1    # 交易手数
         self.order_timeout = 0.8       # 订单超时时间（秒）
         self.price_tick_min = 10       # 一跳的最小变动价格
         self.min_profit_points = 10    # 基本利润（最小盈利）
-        self.slippage_points = 3 * 4   # 做一次差价就是4次下单，一次滑点设为3
-        self.commission_point = 2      # 做一次差价开平的手续费成本,12，一跳10元
+        self.slippage_points = 20 * 4   # 做一次差价就是4次下单，一次滑点设为3
+        self.commission_point = 10      # 做一次差价开平的手续费成本,12，一跳10元
         self.open_delay_sec = 15       # 开仓状态延时秒数设置，减少行情波动影响
         # K线计算规则
         self.klines_std_k = 3          # 计算标准差倍数，用于计算上下轨

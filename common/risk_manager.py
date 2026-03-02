@@ -393,6 +393,10 @@ def output_position(position: dict, is_current = False) -> list[str]:
     if open_price_parts:
         output_lines.append(f"  {'  '.join(open_price_parts)}")
 
+    # 开仓时的指标
+    if position.get("open_send_indicator") is not None:
+        output_lines.append(f"  {'  '.join(position.get("open_send_indicator"))}")
+
     # 平仓价格信息
     close_price_parts: list[str] = []
     if position.get("near_close_price1") is not None:
@@ -405,6 +409,10 @@ def output_position(position: dict, is_current = False) -> list[str]:
         close_price_parts.append(f"远月平仓成交价: {position.get('far_close_price')}")
     if close_price_parts:
         output_lines.append(f"  {'  '.join(close_price_parts)}")
+
+    # 平仓时的指标
+    if position.get("close_send_indicator") is not None:
+        output_lines.append(f"  {'  '.join(position.get("close_send_indicator"))}")
 
     # 价差信息
     if position.get("open_send_spread") is not None:
