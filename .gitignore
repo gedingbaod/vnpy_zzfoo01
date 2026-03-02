@@ -14,7 +14,10 @@
 *.wpu
 .vs
 x64
-
+*.prev
+*.dat.prev
+*.ninja_log
+*.ninja_deps
 # Temp
 build
 dist
@@ -80,3 +83,5 @@ lab/
 /vnpy_ctptesttq/vnpy_ctptesttq/api/meson-private/python-3.13-installed.json
 /vnpy_ctptesttq/vnpy_ctptesttq/api/vnctpmd.cp313-win_amd64.lib
 /vnpy_ctptesttq/vnpy_ctptesttq/api/vnctptd.cp313-win_amd64.lib
+/vnpy_ttstq/vnpy_ttstq/api/meson-private/coredata.dat.prev
+/vnpy_ctptq/vnpy_ctptq/api/meson-private/coredata.dat.prev
