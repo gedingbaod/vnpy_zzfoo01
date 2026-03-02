@@ -379,9 +379,9 @@ def output_position(position: dict, is_current = False) -> list[str]:
     if position.get("near_open_price1") is not None:
         open_price_parts.append(f"近月开仓发送价: {position.get('near_open_price1')}")
     if position.get("far_open_price1") is not None:
-        open_price_parts.append(f"远月开仓发送价: {position.get('far_open_price1')}")
+        open_price_parts.append(f"远月开仓发送价: {position.get('far_open_price1')}\n")
     if position.get("near_open_price") is not None:
-        open_price_parts.append(f"  近月开仓成交价: {position.get('near_open_price')}")
+        open_price_parts.append(f"近月开仓成交价: {position.get('near_open_price')}")
     if position.get("far_open_price") is not None:
         open_price_parts.append(f"远月开仓成交价: {position.get('far_open_price')}")
     if open_price_parts:
