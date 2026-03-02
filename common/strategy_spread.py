@@ -615,7 +615,7 @@ class SpreadTradingStrategy(BaseStrategy):
         Literal[OrderType.LIMIT, OrderType.MARKET], float, float]:
         # 两家上海的交易所不支持市价指令，使用涨跌停价回撤10%作为市价
 
-        if exchange in [Exchange.SHFE, Exchange.INE]:
+        if exchange in [Exchange.SHFE, Exchange.INE, Exchange.DCE]:
             order_type = OrderType.LIMIT
             if position_type == SPREAD_POSITION_TYPE_SHORT:
                 near_price = near_quote.lower_limit + (near_quote.pre_settlement - near_quote.lower_limit) * 0.1
