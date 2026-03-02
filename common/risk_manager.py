@@ -146,7 +146,8 @@ class RiskManager:
             except Exception as e:
                 if self.active:
                     self.strategy.gateway.write_log(f"风险检查异常: {str(e)}")
-                # break
+                import traceback
+                traceback.print_exc()
 
         print("风险管理线程关闭")
 
