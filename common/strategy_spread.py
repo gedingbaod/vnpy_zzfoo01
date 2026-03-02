@@ -561,7 +561,7 @@ class SpreadTradingStrategy(BaseStrategy):
         open_real_spread = self.spread_position["open_real_spread"]
         # 动态平仓成本，开仓时滑点是2倍，平仓时，这里选择1倍，主要还是以mean为准，动态成本用来控制风险
         # 如果实际开仓差价开mean上，甚至小于mean，这个成本可以保证不亏。
-        close_dynamic_spread_cost = abs(self.static_spread_cost) + abs(dynamic_slippage_points*2)
+        close_dynamic_spread_cost = abs(self.static_spread_cost) + abs(dynamic_slippage_points)
         # rm08：动态平空价差，覆盖成本，这个地方减法会使价差更低     实际开空价差 - 动态平仓成本
         dynamic_close_short_spread = open_real_spread - close_dynamic_spread_cost
         # rm08：动态平多价差，覆盖成本，这个地方加法会使价差更高     实际开多价差 + 动态平仓成本
