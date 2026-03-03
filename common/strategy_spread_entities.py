@@ -74,14 +74,14 @@ class BzSpreadStrategy(SpreadTradingStrategy):
         super().__init__(gateway, near_symbol, far_symbol, Exchange.DCE)
         #     "spread.near_symbol": "bz2604",
         #     "spread.far_symbol": "bz2605",
-        # 设置锡特定的策略参数
+        # 设置特定的策略参数
         self.transaction_volume = 1    # 交易手数
         self.order_timeout = 0.9       # 订单超时时间（秒）
-        self.slippage_points = 30      # 做一次差价就是4次下单，一次滑点设为30
-        self.commission_point = 3      # 做一次差价开平的手续费成本80元，一跳30元
         self.price_tick_min = 1        # 一跳的最小变动价格，一手30元
-        self.min_profit_points = 10    # 基本利润（最小盈利）
         self.open_delay_sec = 15       # 开仓状态延时秒数设置，减少行情波动影响
+        self.slippage_points = 40      # 做一次差价就是4次下单
+        self.min_profit_points = 10    # 基本利润（最小盈利）
+        self.commission_point = 3      # 做一次差价开平的手续费成本80元，一跳30元
 
         # K线计算规则
         self.klines_std_k = 3          # 计算标准差倍数，用于计算上下轨
