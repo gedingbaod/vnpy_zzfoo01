@@ -18,8 +18,8 @@ import numpy as np
 import pandas as pd
 from tqsdk.objs import Quote
 
-from common.func_magic import print_msg_with_time_third, print_msg_with_time_fifth, print_msg_with_time_tenth, FLOAT_FLOOR, FLOAT_CEIL
-from common.func_num import round_to_10, round_to_1, round_to_price_unit
+from common.func_magic import print_msg_with_time_third, print_msg_with_time_fifth, print_msg_with_time_tenth
+from common.func_num import round_to_10, round_to_1, round_to_price_unit, FLOAT_FLOOR, FLOAT_CEIL
 
 from common.time_delay import precise_time_trigger, check_market_opening_time_morning, \
     check_market_opening_time_night
