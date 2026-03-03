@@ -3,6 +3,10 @@ from math import floor, ceil
 
 # 其他常量
 MAX_FLOAT = sys.float_info.max
+FLOAT_ROUND = "round"
+FLOAT_FLOOR = "floor"
+FLOAT_CEIL = "ceil"
+FLOAT_VALID_MODE = [FLOAT_ROUND, FLOAT_FLOOR, FLOAT_CEIL]
 
 def adjust_price(price: float) -> float:
     """将异常的浮点数最大值（MAX_FLOAT）数据调整为0"""
@@ -67,7 +71,7 @@ def round_to_02(x: float, mode="round") -> float:
     return final_result
 
 
-def round_to_price_unit(x: float, unit: float, mode: str = "round") -> float:
+def round_to_price_unit(x: float, unit: float, mode: str = FLOAT_ROUND) -> float:
     """
     将数值规整为指定价格单位的倍数
     :param x: 原始小数价格（如1.35）
@@ -78,18 +82,18 @@ def round_to_price_unit(x: float, unit: float, mode: str = "round") -> float:
     # 校验输入合法性
     if unit <= 0:
         raise ValueError("价格单位unit必须是正数（如0.02、0.5、1等）")
-    valid_modes = ["round", "floor", "ceil"]
-    if mode not in valid_modes:
-        raise ValueError(f"mode只能是{valid_modes}中的一种")
+
+    if mode not in FLOAT_VALID_MODE:
+        raise ValueError(f"mode只能是{FLOAT_VALID_MODE}中的一种")
 
     # 核心逻辑：先转换为单位基数，再取整，最后还原
     base = x / unit  # 转换为单位基数（如1.35 / 0.05 = 27）
 
-    if mode == "round":
+    if mode == FLOAT_ROUND:
         result_base = round(base)
-    elif mode == "floor":
+    elif mode == FLOAT_FLOOR:
         result_base = floor(base)
-    else:  # ceil
+    else:
         result_base = ceil(base)
 
     # 还原为单位倍数，并处理浮点精度问题

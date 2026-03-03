@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 from tqsdk.objs import Quote
 
-from common.func_magic import print_msg_with_time_third, print_msg_with_time_fifth
+from common.func_magic import print_msg_with_time_third, print_msg_with_time_fifth, print_msg_with_time_tenth, FLOAT_FLOOR, FLOAT_CEIL
 from common.func_num import round_to_10, round_to_1, round_to_price_unit
 
 from common.time_delay import precise_time_trigger, check_market_opening_time_morning, \
@@ -357,17 +357,22 @@ class SpreadTradingStrategy(BaseStrategy):
         # 获取真实价差
         # 开仓时的盘口成本，以空差为例：  (近期买1价-远期卖1价) - (近期卖1价-远期买1价)   结果为负数就是成本，为正数就是利润
         # 盘口成本为负时，说明价差还可能会上涨，比如会到-10，所以等价差从高点开始回落，再下单是比较好的时机
-        real_short_spread = near_quote.bid_price1 - far_quote.ask_price1
-        real_long_spread = near_quote.ask_price1 - far_quote.bid_price1
-        # 动态滑点
-        dynamic_slippage_points = abs(real_short_spread - real_long_spread)
-        # 动态开仓成本线，用在上下轨，所以用于开仓的检查
-        open_dynamic_spread_cost = self.static_spread_cost + dynamic_slippage_points * 2
+        # real_short_spread = near_quote.bid_price1 - far_quote.ask_price1
+        # real_long_spread = near_quote.ask_price1 - far_quote.bid_price1
+        # # 动态滑点
+        # dynamic_slippage_points = abs(real_short_spread - real_long_spread)
 
-        # near_space = near_quote.ask_price1 - near_quote.bid_price1
-        # far_space = far_quote.ask_price1 - far_quote.bid_price1
-        # close_space_spread = abs(near_space) + abs(far_space)
-        # open_dynamic_spread_cost = close_space_spread
+
+        # 计算盘口空间差，买一价卖一价之间并不是连续的，尤其是远月，经常差几百个点
+        # 在开仓时就要考虑到，这一单开下去，最终的成交价格会在哪里
+        # 同时考虑平仓时，能付覆盖住这笔交易
+        near_space = near_quote.ask_price1 - near_quote.bid_price1
+        far_space = far_quote.ask_price1 - far_quote.bid_price1
+        quote_space_spread = abs(near_space) + abs(far_space)
+        # dynamic_slippage_points和quote_space_spread是两种算法，结果是一样的，quote_space_spread好理解一些
+
+        # 动态开仓成本线，用在上下轨，所以用于开仓的检查
+        open_dynamic_spread_cost = self.static_spread_cost + quote_space_spread * 2
 
 
         # 计算klines价差
@@ -395,14 +400,17 @@ class SpreadTradingStrategy(BaseStrategy):
             if isnan(mean):
                 return None
             std = np.std(spread)
-            # 计算上轨边界，出于风控考虑，不能低于静态阈值，否则成本不报
-            upper_bound = mean + max(self.klines_std_k * std, open_dynamic_spread_cost)
-            # 计算下轨边界，同时每个边界都要加上动态滑点
-            lower_bound = mean - max(self.klines_std_k * std, open_dynamic_spread_cost)
-            # 存储前值
+            # 看标准差，
+            final_limit = max(self.klines_std_k * std, open_dynamic_spread_cost)
+            # 计算上下轨边界
+            upper_bound = round_to_price_unit(mean + final_limit, self.price_tick_min, FLOAT_CEIL)
+            lower_bound = round_to_price_unit(mean - final_limit, self.price_tick_min, FLOAT_FLOOR)
 
-            self.current_spread_indicator = (mean, std, upper_bound, lower_bound, dynamic_slippage_points)
-            print_msg_with_time_fifth(f'---计算指标：{str(self.current_spread_indicator)}', self.gateway.write_log)
+
+
+            # 存储前值
+            self.current_spread_indicator = (mean, std, upper_bound, lower_bound, quote_space_spread, final_limit)
+            print_msg_with_time_tenth(f'---计算指标：{str(self.current_spread_indicator)}', self.gateway.write_log)
             return self.current_spread_indicator
 
         else:
@@ -411,13 +419,14 @@ class SpreadTradingStrategy(BaseStrategy):
             # 但是klines虽然没变，但是盘口滑点是变化的，所以要重新计算
             if self.current_spread_indicator is not None:
                 # 获取历史指标
-                (mean, std, upper_bound, lower_bound, _) = self.current_spread_indicator
+                (mean, std, upper_bound, lower_bound, _, _) = self.current_spread_indicator
                 # 计算上轨边界，出于风控考虑，不能低于静态阈值，否则成本不报
-                upper_bound = mean + max(self.klines_std_k * std, open_dynamic_spread_cost)
+                final_limit = max(self.klines_std_k * std, open_dynamic_spread_cost)
+                upper_bound = mean + final_limit
                 # 计算下轨边界
-                lower_bound = mean - max(self.klines_std_k * std, open_dynamic_spread_cost)
+                lower_bound = mean - final_limit
                 # 重新赋值
-                self.current_spread_indicator = (mean, std, upper_bound, lower_bound, dynamic_slippage_points)
+                self.current_spread_indicator = (mean, std, upper_bound, lower_bound, quote_space_spread, final_limit)
                 print_msg_with_time_third(f"--klines不一致，使用历史数据计算完成，{self.current_spread_indicator}", self.gateway.write_log)
                 return self.current_spread_indicator
             else:
@@ -513,9 +522,7 @@ class SpreadTradingStrategy(BaseStrategy):
         real_long_spread = near_quote.ask_price1 - far_quote.bid_price1
 
         # 取出开仓指标
-        (mean, std, upper_bound, lower_bound, dynamic_slippage_points) = self.current_spread_indicator
-        # 动态开仓成本
-        open_dynamic_spread_cost = self.static_spread_cost + dynamic_slippage_points * 2
+        (mean, std, upper_bound, lower_bound, quote_space_spread, final_limit) = self.current_spread_indicator
 
         print_msg_with_time_fifth(f'开仓机会：{self.current_spread_indicator} \n'
             f'real_short_spread: {real_short_spread}, real_long_spread: {real_long_spread}', self.gateway.write_log)
@@ -526,18 +533,18 @@ class SpreadTradingStrategy(BaseStrategy):
             head_str = ""
             if check_market_opening_time_morning():
                 self._spread_open_short_delay(near_quote,far_quote,"09:00:00.001000")
-                head_str = "========早盘延时做空开仓"
+                head_str = "============早盘延时做空开仓"
             elif check_market_opening_time_night():
                 self._spread_open_short_delay(near_quote,far_quote,"21:00:00.001000")
-                head_str = "========夜盘延时做空开仓"
+                head_str = "============夜盘延时做空开仓"
             else:
                 self._spread_open_short(near_quote, far_quote)
-                head_str = "========价差做空开仓"
+                head_str = "============价差做空开仓"
 
             self.gateway.write_log(
                 f"{head_str}: {real_short_spread} > {upper_bound}，"
-                f"动态滑点: {dynamic_slippage_points}，"
-                f"动态开仓成本：{open_dynamic_spread_cost}")
+                f"盘口成本: {quote_space_spread}，"
+                f"最终开仓成本：{final_limit}")
             return
 
         # 做多价差：价差过低
@@ -546,18 +553,18 @@ class SpreadTradingStrategy(BaseStrategy):
             head_str = ""
             if check_market_opening_time_morning():
                 self._spread_open_long_delay(near_quote,far_quote,"09:00:00.001000")
-                head_str = "========早盘延时做多开仓"
+                head_str = "============早盘延时做多开仓"
             elif check_market_opening_time_night():
                 self._spread_open_long_delay(near_quote,far_quote,"21:00:00.001000")
-                head_str = "========夜盘延时做多开仓"
+                head_str = "============夜盘延时做多开仓"
             else:
                 self._spread_open_long(near_quote, far_quote)
-                head_str = "========价差做多开仓"
+                head_str = "============价差做多开仓"
 
             self.gateway.write_log(
                 f"{head_str}: {real_short_spread} > {upper_bound}，"
-                f"动态滑点: {dynamic_slippage_points}，"
-                f"动态开仓成本：{open_dynamic_spread_cost}")
+                f"盘口成本: {quote_space_spread}，"
+                f"最终开仓成本：{final_limit}")
             return
 
     def _find_close_opportunity(self, near_quote: Quote, far_quote: Quote):
@@ -565,7 +572,7 @@ class SpreadTradingStrategy(BaseStrategy):
         # 获取持仓类型
         position_type = self.spread_position.get(SPREAD_POSITION_TYPE)
         # 获取技术指标
-        (mean, std, upper_bound, lower_bound, dynamic_slippage_points) = self.current_spread_indicator
+        (mean, std, upper_bound, lower_bound, quote_space_spread, final_limit) = self.current_spread_indicator
 
         # 盘口计算价差
         # 做空价差（可卖出价差）= 近月买价 - 远月卖价
@@ -573,14 +580,9 @@ class SpreadTradingStrategy(BaseStrategy):
         # 盘口做多价差（可买入价差）= 近月卖价 - 远月买价
         quote_real_long_spread = near_quote.ask_price1 - far_quote.bid_price1
 
-        # 计算盘口空间差
-        near_space = near_quote.ask_price1 - near_quote.bid_price1
-        far_space = far_quote.ask_price1 - far_quote.bid_price1
-        close_space_spread = abs(near_space) + abs(far_space)
-        close_dynamic_spread_cost = dynamic_slippage_points * 2 + self.min_profit_points + self.commission_point
-        # 动态平仓成本，开仓时滑点是2倍，平仓时，这里选择1倍，主要还是以mean为准，动态成本用来控制风险
+        # 动态平仓成本，实际经验滑点是2倍，主要还是以mean为准，动态成本用来控制风险
         # 如果实际开仓差价开mean上，甚至小于mean，这个成本可以保证不亏。
-        # close_dynamic_spread_cost = abs(self.static_spread_cost) + abs(dynamic_slippage_points)
+        close_dynamic_spread_cost = abs(self.static_spread_cost) + abs(quote_space_spread)
 
         # 发送开仓时盘口的差价
         open_send_spread = self.spread_position["open_send_spread"]
@@ -605,13 +607,14 @@ class SpreadTradingStrategy(BaseStrategy):
                 self._spread_close_short(near_quote, far_quote)
                 send_time = get_now_str()
                 self.gateway.write_log(
-                    f"做空价差回归 at {send_time}: {quote_real_long_spread} <= {mean}，平仓 动态平空价差：{dynamic_close_short_spread} 动态滑点：{dynamic_slippage_points}")
+                    f"做空价差回归 at {send_time}: {quote_real_long_spread} <= {mean}，"
+                    f"平仓 动态平空价差：{dynamic_close_short_spread} 动态滑点：{quote_space_spread}")
                 return
 
             # rm06 风控止损：价差继续扩大（>开仓价+3个标准差）
             # 做空价差亏损了，止损平仓
             # if quote_real_long_spread > open_send_spread + std * 3:
-            #     self.gateway.write_log(f"做空价差止损: {quote_real_long_spread} > {open_send_spread} + {std * 3}，平仓 动态滑点{dynamic_slippage_points}")
+            #     self.gateway.write_log(f"做空价差止损: {quote_real_long_spread} > {open_send_spread} + {std * 3}，平仓 动态滑点{quote_space_spread}")
             #     self._spread_close_short(near_quote, far_quote)
             #     return
 
@@ -625,13 +628,14 @@ class SpreadTradingStrategy(BaseStrategy):
                 self._spread_close_long(near_quote, far_quote)
                 send_time = get_now_str()
                 self.gateway.write_log(
-                    f"做多价差回归 at {send_time}: {quote_real_short_spread} >= {mean}，平仓 动态平多价差：{dynamic_close_long_spread} 动态滑点：{dynamic_slippage_points}")
+                    f"做多价差回归 at {send_time}: {quote_real_short_spread} >= {mean}，"
+                    f"平仓 动态平多价差：{dynamic_close_long_spread} 动态滑点：{quote_space_spread}")
                 return
 
             # rm06 风控止损：价差继续下跌（<开仓价-50）
             # 做多价差亏损了，止损平仓
             # if quote_real_short_spread < open_send_spread - std * 3:
-            #     self.gateway.write_log(f"做多价差止损: {quote_real_short_spread} < {open_send_spread} - {std * 3}，平仓 动态滑点{dynamic_slippage_points}")
+            #     self.gateway.write_log(f"做多价差止损: {quote_real_short_spread} < {open_send_spread} - {std * 3}，平仓 动态滑点{quote_space_spread}")
             #     self._spread_close_long(near_quote, far_quote)
             #     return
 
