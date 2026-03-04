@@ -395,7 +395,7 @@ def output_position(position: dict, is_current = False) -> list[str]:
 
     # 开仓时的指标
     if position.get("open_spread_indicator") is not None:
-        output_lines.append(f"  {'  '.join(str_indicators(position.get("open_spread_indicator")))}")
+        output_lines.append(f"  开仓时指标：{str_indicators(position.get("open_spread_indicator"))}")
 
     # 平仓价格信息
     close_price_parts: list[str] = []
@@ -412,7 +412,7 @@ def output_position(position: dict, is_current = False) -> list[str]:
 
     # 平仓时的指标
     if position.get("close_spread_indicator") is not None:
-        output_lines.append(f"  {'  '.join(str_indicators(position.get("close_spread_indicator")))}")
+        output_lines.append(f"  平仓时指标：{str_indicators(position.get("close_spread_indicator"))}")
 
     # 价差信息
     if position.get("open_send_spread") is not None:
