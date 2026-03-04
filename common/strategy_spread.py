@@ -575,7 +575,8 @@ class SpreadTradingStrategy(BaseStrategy):
 
         # 动态平仓成本，实际经验滑点是2倍，主要还是以mean为准，动态成本用来控制风险
         # 如果实际开仓差价开mean上，甚至小于mean，这个成本可以保证不亏。
-        close_dynamic_spread_cost = abs(self.static_spread_cost) + abs(quote_space_spread)
+        # 这里只有滑点和手续费，不考虑利润，能平就行
+        close_dynamic_spread_cost = abs(self.slippage_points + self.commission_point) + abs(quote_space_spread)
 
         # 发送开仓时盘口的差价
         open_send_spread = self.spread_position["open_send_spread"]
