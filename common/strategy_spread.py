@@ -560,7 +560,7 @@ class SpreadTradingStrategy(BaseStrategy):
                 head_str = "============价差做多开仓"
 
             self.gateway.write_log(
-                f"{head_str}: {real_short_spread} > {upper_bound}，"
+                f"{head_str}: {real_long_spread} < {lower_bound}，"
                 f"盘口成本: {quote_space_spread}，"
                 f"最终开仓成本：{final_limit}")
             return

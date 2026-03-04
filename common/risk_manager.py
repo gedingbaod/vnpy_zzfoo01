@@ -395,7 +395,7 @@ def output_position(position: dict, is_current = False) -> list[str]:
 
     # 开仓时的指标
     if position.get("open_spread_indicator") is not None:
-        output_lines.append(f"  {'  '.join(str(position.get("open_spread_indicator")))}")
+        output_lines.append(f"  {'  '.join(str_indicators(position.get("open_spread_indicator")))}")
 
     # 平仓价格信息
     close_price_parts: list[str] = []
@@ -412,7 +412,7 @@ def output_position(position: dict, is_current = False) -> list[str]:
 
     # 平仓时的指标
     if position.get("close_spread_indicator") is not None:
-        output_lines.append(f"  {'  '.join(str(position.get("close_spread_indicator")))}")
+        output_lines.append(f"  {'  '.join(str_indicators(position.get("close_spread_indicator")))}")
 
     # 价差信息
     if position.get("open_send_spread") is not None:
@@ -436,7 +436,19 @@ def output_position(position: dict, is_current = False) -> list[str]:
         pass
     return output_lines
 
+def str_indicators(spread_indicator: tuple):
+    (mean, std, upper_bound, lower_bound, quote_space_spread, final_limit) = spread_indicator
+    mean = round(mean, 2)
+    std = round(std, 2)
+    return (f'均值：{mean}，方差：{std}，上轨：{upper_bound}，下轨：{lower_bound}, '
+            f'盘口成本：{quote_space_spread}，最终差价取值：{final_limit}')
+
+
 if __name__ == "__main__":
     symbol_short = "ni"
     trading_time = EXCHANGE_TRADE_TIME[symbol_short]
     print(trading_time)
+
+    spread_indicator = (-451.5, 45.9646603381, -230, -670, 90, 218)
+    print(repr(spread_indicator))
+    print(str_indicators(spread_indicator))
