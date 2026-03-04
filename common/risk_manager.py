@@ -437,6 +437,8 @@ def output_position(position: dict, is_current = False) -> list[str]:
     return output_lines
 
 def str_indicators(spread_indicator: tuple):
+    if spread_indicator is None:
+        return "无"
     (mean, std, upper_bound, lower_bound, quote_space_spread, final_limit) = spread_indicator
     mean = round(mean, 2)
     std = round(std, 2)
