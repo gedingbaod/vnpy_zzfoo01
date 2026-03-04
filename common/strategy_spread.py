@@ -411,7 +411,7 @@ class SpreadTradingStrategy(BaseStrategy):
             return self.current_spread_indicator
 
         else:
-            self.gateway.write_log(f"---klines时间不一致，near_klines时间：{near_kline_time}, far_klines时间：{far_kline_time}")
+            # self.gateway.write_log(f"---klines时间不一致，near_klines时间：{near_kline_time}, far_klines时间：{far_kline_time}")
             # 数据没对齐就用前值，
             # 但是klines虽然没变，但是盘口滑点是变化的，所以要重新计算
             if self.current_spread_indicator is not None:
@@ -425,7 +425,7 @@ class SpreadTradingStrategy(BaseStrategy):
 
                 # 重新赋值
                 self.current_spread_indicator = (mean, std, upper_bound, lower_bound, quote_space_spread, final_limit)
-                elf.gateway.write_log(f"---klines不一致，near_k：{near_kline_time}, far_k：{far_kline_time}\n---使用历史数据计算完成，{self.current_spread_indicator}")
+                self.gateway.write_log(f"---klines时间不一致，near_k：{near_kline_time}, far_k：{far_kline_time}\n---使用历史数据计算完成，{self.current_spread_indicator}")
                 return self.current_spread_indicator
             else:
                 # 数据不存在，返回空
