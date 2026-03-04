@@ -436,14 +436,13 @@ def output_position(position: dict, is_current = False) -> list[str]:
         pass
     return output_lines
 
-def str_indicators(spread_indicator: tuple):
+def str_indicators(spread_indicator: tuple) -> str:
     if spread_indicator is None:
         return "无"
     (mean, std, upper_bound, lower_bound, quote_space_spread, final_limit) = spread_indicator
     mean = round(mean, 2)
     std = round(std, 2)
-    return (f'均值：{mean}，方差：{std}，上轨：{upper_bound}，下轨：{lower_bound}, '
-            f'盘口成本：{quote_space_spread}，最终差价取值：{final_limit}')
+    return f'均值：{mean}，方差：{std}，上轨：{upper_bound}，下轨：{lower_bound}, 盘口成本：{quote_space_spread}，最终差价取值：{final_limit}'
 
 
 if __name__ == "__main__":
