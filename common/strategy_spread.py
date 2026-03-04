@@ -398,7 +398,7 @@ class SpreadTradingStrategy(BaseStrategy):
             mean = np.mean(spread)
             if isnan(mean):
                 return None
-            std = np.std(spread)
+            std = round(np.std(spread), 2)
             # 看标准差，
             final_limit = max(self.klines_std_k * std, open_dynamic_spread_cost)
             # 计算上下轨边界
@@ -425,11 +425,11 @@ class SpreadTradingStrategy(BaseStrategy):
 
                 # 重新赋值
                 self.current_spread_indicator = (mean, std, upper_bound, lower_bound, quote_space_spread, final_limit)
-                print_msg_with_time_third(f"--klines不一致，使用历史数据计算完成，{self.current_spread_indicator}", self.gateway.write_log)
+                elf.gateway.write_log(f"---klines不一致，near_k：{near_kline_time}, far_k：{far_kline_time}\n---使用历史数据计算完成，{self.current_spread_indicator}")
                 return self.current_spread_indicator
             else:
                 # 数据不存在，返回空
-                print_msg_with_time_third("---klines时间不一致，没有前次数据", self.gateway.write_log)
+                self.gateway.write_log(f"---klines时间不一致，没有前次数据，near_klines时间：{near_kline_time}, far_klines时间：{far_kline_time}")
                 return None
 
     def _check_position_status(self, near_quote: Quote, far_quote: Quote) -> None:
