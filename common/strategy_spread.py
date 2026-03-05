@@ -522,7 +522,8 @@ class SpreadTradingStrategy(BaseStrategy):
         # 取出开仓指标
         (mean, std, upper_bound, lower_bound, quote_space_spread, final_limit) = self.current_spread_indicator
 
-        print_msg_with_time_tenth(f'开仓机会：{self.current_spread_indicator} \n'
+        print_msg_with_time_tenth(f'开仓机会：quote_time: {near_quote.datetime}\n'
+            f'{self.current_spread_indicator} \n'
             f'real_short_spread: {real_short_spread}, real_long_spread: {real_long_spread}', self.gateway.write_log)
         # 做空价差：价差过高
         # 卖出近月合约，买入远月合约，预期价差会回归到中轨
