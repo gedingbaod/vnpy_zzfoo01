@@ -1129,13 +1129,32 @@ class SpreadTradingStrategy(BaseStrategy):
 
             if is_close_set and (position.get("near_close_price") is not None) \
                     and (position.get("far_close_price") is not None):
+                # 计算实际平仓差价
                 position["close_real_spread"] = position["near_close_price"] - position["far_close_price"]
-                # print(f'close_real_spread: {position["close_real_spread"]}')
+                # 计算实际利润
+                if position.get(SPREAD_POSITION_TYPE) == SPREAD_POSITION_TYPE_SHORT:
+                    position["real_profit"] = position.get("open_real_spread") - position.get("close_real_spread")
+                elif position.get(SPREAD_POSITION_TYPE) == SPREAD_POSITION_TYPE_LONG:
+                    position["real_profit"] = position.get("close_real_spread") - position.get("open_real_spread")
+                else:
+                    position["real_profit"] = 0
+
+                self.gateway.write_log(f'open_real_spread: {position["open_real_spread"]}, '
+                    f'close_real_spread: {position["close_real_spread"]}, read_profit: {position["real_profit"]}')
+
             # 平仓的时候，有可能信息被移动到历史仓位里，所以要从历史仓位里找一遍
             elif is_h_close_set and (h_position.get("near_close_price") is not None) \
                     and (h_position.get("far_close_price") is not None):
                 h_position["close_real_spread"] = h_position["near_close_price"] - h_position["far_close_price"]
-                # print(f'h close_real_spread: {h_position["close_real_spread"]}')
+                # 计算实际利润
+                if position.get(SPREAD_POSITION_TYPE) == SPREAD_POSITION_TYPE_SHORT:
+                    position["real_profit"] = position.get("open_real_spread") - position.get("close_real_spread")
+                elif position.get(SPREAD_POSITION_TYPE) == SPREAD_POSITION_TYPE_LONG:
+                    position["real_profit"] = position.get("close_real_spread") - position.get("open_real_spread")
+                else:
+                    position["real_profit"] = 0
+                self.gateway.write_log(f'open_real_spread: {position["open_real_spread"]}, '
+                     f'close_real_spread: {position["close_real_spread"]}, read_profit: {position["real_profit"]}')
 
             if not is_open_set and not is_close_set and not is_h_close_set:
                 self.gateway.write_log(f"交易结果中未找到对应订单ID: {vt_orderid} at {receive_time}")
