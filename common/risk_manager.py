@@ -400,11 +400,11 @@ def output_position(position: dict, is_current = False) -> list[str]:
     # 平仓价格信息
     close_price_parts: list[str] = []
     if position.get("near_close_price1") is not None:
-        close_price_parts.append(f"近月平仓发送价: {position.get('near_close_price1')}")
+        close_price_parts.append(f"近月平仓发送价: {float(position.get('near_close_price1'))}")
     if position.get("far_close_price1") is not None:
         close_price_parts.append(f"远月平仓发送价: {position.get('far_close_price1')}\n")
     if position.get("near_close_price") is not None:
-        close_price_parts.append(f"近月平仓成交价: {position.get('near_close_price')}")
+        close_price_parts.append(f"近月平仓成交价: {float(position.get('near_close_price'))}")
     if position.get("far_close_price") is not None:
         close_price_parts.append(f"远月平仓成交价: {position.get('far_close_price')}")
     if close_price_parts:
@@ -416,11 +416,11 @@ def output_position(position: dict, is_current = False) -> list[str]:
 
     # 价差信息
     if position.get("open_send_spread") is not None:
-        output_lines.append(f"  开仓发送价差: {position.get('open_send_spread')}")
+        output_lines.append(f"  开仓发送价差: {float(position.get('open_send_spread'))}")
     if position.get("open_real_spread") is not None:
         output_lines.append(f"  实际开仓价差: {position.get('open_real_spread')}")
     if position.get("close_send_spread") is not None:
-        output_lines.append(f"  平仓发送价差: {position.get('close_send_spread')}")
+        output_lines.append(f"  平仓发送价差: {float(position.get('close_send_spread'))}")
     if position.get("close_real_spread") is not None:
         output_lines.append(f"  实际平仓价差: {position.get('close_real_spread')}")
 
