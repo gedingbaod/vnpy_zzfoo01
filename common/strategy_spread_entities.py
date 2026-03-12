@@ -35,9 +35,9 @@ class NiSpreadStrategy(SpreadTradingStrategy):
         # 设置镍特定的策略参数   静态成本10+10+80=100
         self.transaction_volume = 1    # 交易手数
         self.order_timeout = 0.8       # 订单超时时间（秒）
-        self.price_tick_min = 10       # 一跳的最小变动价格
+        self.price_tick_min = 100       # 一跳的最小变动价格
         self.min_profit_points = 50    # 基本利润（最小盈利）
-        self.slippage_points = 20 * 4  # 做一次差价就是4次下单，一次滑点设为3
+        self.slippage_points = 20 * 4  # 做一次差价就是4次下单
         self.commission_point = 10     # 做一次差价开平的手续费成本,12，一跳10元
         self.open_delay_sec = 15       # 开仓状态延时秒数设置，减少行情波动影响
         # K线计算规则
@@ -56,7 +56,7 @@ class SnSpreadStrategy(SpreadTradingStrategy):
         # 设置特定的策略参数
         self.transaction_volume = 1    # 交易手数
         self.order_timeout = 0.8       # 订单超时时间（秒）
-        self.min_profit_points = 3     # 基本利润（最小盈利）
+        self.min_profit_points = 200   # 基本利润（最小盈利）
         self.slippage_points = 50 * 4  # 做一次差价就是4次下单，一次滑点设为50
         self.commission_point = 2      # 做一次差价开平的手续费成本,12，一跳10元
         self.price_tick_min = 10       # 一跳的最小变动价格
@@ -99,7 +99,7 @@ class SiSpreadStrategy(SpreadTradingStrategy):
         # 设置特定的策略参数
         self.transaction_volume = 1    # 交易手数
         self.order_timeout = 0.9       # 订单超时时间（秒）
-        self.min_profit_points = 10    # 基本利润（最小盈利）合约点数，10个点就是50元
+        self.min_profit_points = 20    # 基本利润（最小盈利）合约点数，10个点就是50元
         self.slippage_points = 10 * 4  # 做一次差价就是4次下单，一次滑点设为10
         self.commission_point = 5      # 做一次差价开平的手续费成本5*4元，换算成点数，一跳5个点25元
         self.price_tick_min = 5        # 一跳的最小变动价格
