@@ -20,7 +20,8 @@ from vnpy.trader.setting import SETTINGS
 from vnpy.trader.database import get_database
 
 
-def plot_tick_data(symbol: str, exchange: Exchange, start_date: str, end_date: str, time_range_seconds: int = 60):
+def plot_tick_data(symbol: str, exchange: Exchange, start_date: str, end_date: str,
+                   time_range_seconds: int = 60):
     """
     获取指定合约每日 9:00 到 9:05 的 tick 数据并画图
 
@@ -135,6 +136,12 @@ def plot_tick_data(symbol: str, exchange: Exchange, start_date: str, end_date: s
         ax1 = axes[0]
         ax1.plot(day_data_filtered['time_seconds'], day_data_filtered['last_price'],
                 color='blue', linewidth=2, label='最新价')
+
+        # 计算并绘制累积平均线（从第1个tick到第N个tick的平均值）
+        day_data_filtered['cumulative_ma'] = day_data_filtered['last_price'].expanding().mean()
+        ax1.plot(day_data_filtered['time_seconds'], day_data_filtered['cumulative_ma'],
+                color='red', linewidth=2, linestyle='--', label='累积平均', alpha=0.8)
+
         ax1.set_xlabel('时间 (从9:00开始的秒数)', fontsize=12)
         ax1.set_ylabel('最新价', fontsize=12)
         ax1.set_title('价格走势', fontsize=14, fontweight='bold')
@@ -192,8 +199,8 @@ def main():
     # 请根据实际情况修改以下参数
     symbol = "sn2604"  # 合约代码
     exchange = Exchange.SHFE  # 交易所
-    start_date = "2026-03-02"  # 开始日期
-    end_date = "2026-03-06"  # 结束日期
+    start_date = "2026-01-23"  # 开始日期
+    end_date = "2026-03-11"  # 结束日期
     time_range_seconds = 120  # 绘制时间范围（秒）：30, 60, 120, 300 等
 
     print("=" * 60)
@@ -204,6 +211,7 @@ def main():
     print(f"日期范围: {start_date} 至 {end_date}")
     print(f"时间段: 每日 9:00 - 9:05")
     print(f"绘制范围: 前 {time_range_seconds} 秒")
+    print(f"均线类型: 累积平均（从第1个tick到第N个tick）")
     print("=" * 60)
     print()
 
