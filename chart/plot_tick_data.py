@@ -128,13 +128,14 @@ def plot_tick_data(symbol: str, exchange: Exchange, start_date: str, end_date: s
             tick_interval = 30  # 更长时间，每30秒一个刻度
 
         time_ticks = list(range(int(min_time), int(max_time) + 1, tick_interval))
-        time_labels = [f"{t//60}:{t%60:02d}" for t in time_ticks]
+        # 只显示从9点开始的秒数
+        time_labels = [f"{int(t - min_time)}" for t in time_ticks]
 
         # 图 1: 价格走势
         ax1 = axes[0]
         ax1.plot(day_data_filtered['time_seconds'], day_data_filtered['last_price'],
                 color='blue', linewidth=2, label='最新价')
-        ax1.set_xlabel('时间 (秒)', fontsize=12)
+        ax1.set_xlabel('时间 (从9:00开始的秒数)', fontsize=12)
         ax1.set_ylabel('最新价', fontsize=12)
         ax1.set_title('价格走势', fontsize=14, fontweight='bold')
         ax1.grid(True, alpha=0.3)
@@ -148,7 +149,7 @@ def plot_tick_data(symbol: str, exchange: Exchange, start_date: str, end_date: s
         day_data_filtered['spread'] = day_data_filtered['ask_price_1'] - day_data_filtered['bid_price_1']
         ax2.plot(day_data_filtered['time_seconds'], day_data_filtered['spread'],
                 color='orange', linewidth=2, label='买卖价差')
-        ax2.set_xlabel('时间', fontsize=12)
+        ax2.set_xlabel('时间 (从9:00开始的秒数)', fontsize=12)
         ax2.set_ylabel('买卖价差', fontsize=12)
         ax2.set_title('买卖价差 (ask_price_1 - bid_price_1)', fontsize=14, fontweight='bold')
         ax2.grid(True, alpha=0.3)
@@ -162,7 +163,7 @@ def plot_tick_data(symbol: str, exchange: Exchange, start_date: str, end_date: s
         day_data_filtered['volume_delta'] = day_data_filtered['volume'].diff().fillna(0)
         ax3.bar(day_data_filtered['time_seconds'], day_data_filtered['volume_delta'],
                color='green', alpha=0.6, width=0.5, label='成交量')
-        ax3.set_xlabel('时间', fontsize=12)
+        ax3.set_xlabel('时间 (从9:00开始的秒数)', fontsize=12)
         ax3.set_ylabel('成交量增量', fontsize=12)
         ax3.set_title('每笔成交量', fontsize=14, fontweight='bold')
         ax3.grid(True, alpha=0.3)

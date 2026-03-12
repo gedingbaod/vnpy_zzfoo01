@@ -22,7 +22,7 @@ x64
 build
 dist
 *.local
-
+*.png
 # VeighNa
 .vntrader
 
@@ -85,3 +85,4 @@ lab/
 /vnpy_ctptesttq/vnpy_ctptesttq/api/vnctptd.cp313-win_amd64.lib
 /vnpy_ttstq/vnpy_ttstq/api/meson-private/coredata.dat.prev
 /vnpy_ctptq/vnpy_ctptq/api/meson-private/coredata.dat.prev
+
