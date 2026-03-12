@@ -89,85 +89,85 @@ def plot_tick_data(symbol: str, exchange: Exchange, start_date: str, end_date: s
     combined_df = pd.concat(all_ticks, ignore_index=True)
     print(f"\n总共获取 {len(combined_df)} 条 tick 数据，覆盖 {len(dates)} 个交易日")
 
-    # 画图
-    fig, axes = plt.subplots(3, 1, figsize=(15, 12))
-    fig.suptitle(f'{symbol}.{exchange.value} - 每日 9:00-9:05 Tick 数据', fontsize=16, fontweight='bold')
-
-    # 颜色列表
-    colors = plt.cm.tab10(range(len(dates)))
-
-    # 图 1: 价格走势
-    ax1 = axes[0]
-    for i, (date, color) in enumerate(zip(dates, colors)):
+    # 为每天分别画图
+    for i, date in enumerate(dates):
         day_data = combined_df[combined_df['date'] == date].copy()
-        if not day_data.empty:
-            # 将时间转换为当天的秒数，便于绘图
-            day_data['time_seconds'] = day_data['datetime'].apply(
-                lambda x: x.hour * 3600 + x.minute * 60 + x.second + x.microsecond / 1e6
-            )
-            ax1.plot(day_data['time_seconds'], day_data['last_price'],
-                    label=date.strftime('%Y-%m-%d'), color=color, linewidth=1.5)
 
-    ax1.set_xlabel('时间 (秒)', fontsize=12)
-    ax1.set_ylabel('最新价', fontsize=12)
-    ax1.set_title('价格走势', fontsize=14, fontweight='bold')
-    ax1.grid(True, alpha=0.3)
-    ax1.legend(loc='best', fontsize=9)
+        if day_data.empty:
+            continue
 
-    # 格式化 x 轴为时间格式
-    time_ticks = range(0, 301, 30)  # 每 30 秒一个刻度
-    time_labels = [f"{t//60}:{t%60:02d}" for t in time_ticks]
-    ax1.set_xticks(time_ticks)
-    ax1.set_xticklabels(time_labels)
+        print(f"\n正在绘制 {date.strftime('%Y-%m-%d')} 的图表...")
 
-    # 图 2: 买卖价差
-    ax2 = axes[1]
-    for i, (date, color) in enumerate(zip(dates, colors)):
-        day_data = combined_df[combined_df['date'] == date].copy()
-        if not day_data.empty:
-            day_data['time_seconds'] = day_data['datetime'].apply(
-                lambda x: x.hour * 3600 + x.minute * 60 + x.second + x.microsecond / 1e6
-            )
-            # 计算买卖价差
-            day_data['spread'] = day_data['ask_price_1'] - day_data['bid_price_1']
-            ax2.plot(day_data['time_seconds'], day_data['spread'],
-                    label=date.strftime('%Y-%m-%d'), color=color, linewidth=1.5)
+        # 将时间转换为当天的秒数
+        day_data['time_seconds'] = day_data['datetime'].apply(
+            lambda x: x.hour * 3600 + x.minute * 60 + x.second + x.microsecond / 1e6
+        )
 
-    ax2.set_xlabel('时间', fontsize=12)
-    ax2.set_ylabel('买卖价差', fontsize=12)
-    ax2.set_title('买卖价差 (ask_price_1 - bid_price_1)', fontsize=14, fontweight='bold')
-    ax2.grid(True, alpha=0.3)
-    ax2.set_xticks(time_ticks)
-    ax2.set_xticklabels(time_labels)
+        # 只取前30秒数据
+        day_start_time = day_data['time_seconds'].min()
+        day_data_30s = day_data[day_data['time_seconds'] <= day_start_time + 30].copy()
 
-    # 图 3: 成交量
-    ax3 = axes[2]
-    for i, (date, color) in enumerate(zip(dates, colors)):
-        day_data = combined_df[combined_df['date'] == date].copy()
-        if not day_data.empty:
-            day_data['time_seconds'] = day_data['datetime'].apply(
-                lambda x: x.hour * 3600 + x.minute * 60 + x.second + x.microsecond / 1e6
-            )
-            # 计算累计成交量增量
-            day_data['volume_delta'] = day_data['volume'].diff().fillna(0)
-            ax3.bar(day_data['time_seconds'], day_data['volume_delta'],
-                   label=date.strftime('%Y-%m-%d'), color=color, alpha=0.6, width=0.8)
+        # 创建图表
+        fig, axes = plt.subplots(3, 1, figsize=(15, 12))
+        fig.suptitle(f'{symbol}.{exchange.value} - {date.strftime("%Y-%m-%d")} 9:00-9:05 Tick 数据 (前30秒)',
+                    fontsize=16, fontweight='bold')
 
-    ax3.set_xlabel('时间', fontsize=12)
-    ax3.set_ylabel('成交量增量', fontsize=12)
-    ax3.set_title('每笔成交量', fontsize=14, fontweight='bold')
-    ax3.grid(True, alpha=0.3)
-    ax3.set_xticks(time_ticks)
-    ax3.set_xticklabels(time_labels)
+        # 计算该天的刻度
+        min_time = day_data_30s['time_seconds'].min()
+        max_time = day_data_30s['time_seconds'].max()
+        tick_interval = 5  # 每5秒一个刻度
+        time_ticks = list(range(int(min_time), int(max_time) + 1, tick_interval))
+        time_labels = [f"{t//60}:{t%60:02d}" for t in time_ticks]
 
-    plt.tight_layout()
+        # 图 1: 价格走势
+        ax1 = axes[0]
+        ax1.plot(day_data_30s['time_seconds'], day_data_30s['last_price'],
+                color='blue', linewidth=2, label='最新价')
+        ax1.set_xlabel('时间 (秒)', fontsize=12)
+        ax1.set_ylabel('最新价', fontsize=12)
+        ax1.set_title('价格走势', fontsize=14, fontweight='bold')
+        ax1.grid(True, alpha=0.3)
+        ax1.legend(loc='best', fontsize=10)
+        ax1.set_xlim(min_time, max_time)
+        ax1.set_xticks(time_ticks)
+        ax1.set_xticklabels(time_labels)
 
-    # 保存图片
-    output_file = Path(__file__).parent / f"{symbol}_tick_9to5_{start_date}_to_{end_date}.png"
-    plt.savefig(output_file, dpi=150, bbox_inches='tight')
-    print(f"\n图片已保存至: {output_file}")
+        # 图 2: 买卖价差
+        ax2 = axes[1]
+        day_data_30s['spread'] = day_data_30s['ask_price_1'] - day_data_30s['bid_price_1']
+        ax2.plot(day_data_30s['time_seconds'], day_data_30s['spread'],
+                color='orange', linewidth=2, label='买卖价差')
+        ax2.set_xlabel('时间', fontsize=12)
+        ax2.set_ylabel('买卖价差', fontsize=12)
+        ax2.set_title('买卖价差 (ask_price_1 - bid_price_1)', fontsize=14, fontweight='bold')
+        ax2.grid(True, alpha=0.3)
+        ax2.legend(loc='best', fontsize=10)
+        ax2.set_xlim(min_time, max_time)
+        ax2.set_xticks(time_ticks)
+        ax2.set_xticklabels(time_labels)
 
-    plt.show()
+        # 图 3: 成交量
+        ax3 = axes[2]
+        day_data_30s['volume_delta'] = day_data_30s['volume'].diff().fillna(0)
+        ax3.bar(day_data_30s['time_seconds'], day_data_30s['volume_delta'],
+               color='green', alpha=0.6, width=0.5, label='成交量')
+        ax3.set_xlabel('时间', fontsize=12)
+        ax3.set_ylabel('成交量增量', fontsize=12)
+        ax3.set_title('每笔成交量', fontsize=14, fontweight='bold')
+        ax3.grid(True, alpha=0.3)
+        ax3.legend(loc='best', fontsize=10)
+        ax3.set_xlim(min_time, max_time)
+        ax3.set_xticks(time_ticks)
+        ax3.set_xticklabels(time_labels)
+
+        plt.tight_layout()
+
+        # 保存该天的图片
+        output_file = Path(__file__).parent / f"{symbol}_tick_{date.strftime('%Y-%m-%d')}_9to5.png"
+        plt.savefig(output_file, dpi=150, bbox_inches='tight')
+        print(f"✓ 图片已保存至: {output_file}")
+
+        plt.close()  # 关闭图表，释放内存
 
 
 def main():
