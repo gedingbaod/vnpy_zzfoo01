@@ -173,8 +173,12 @@ def plot_tick_data(symbol: str, exchange: Exchange, start_date: str, end_date: s
 
         plt.tight_layout()
 
+        # 创建 pic 目录（如果不存在）
+        pic_dir = Path(__file__).parent / 'pic'
+        pic_dir.mkdir(exist_ok=True)
+
         # 保存该天的图片
-        output_file = Path(__file__).parent / f"{symbol}_tick_{date.strftime('%Y-%m-%d')}_9to5.png"
+        output_file = pic_dir / f"{symbol}_tick_{date.strftime('%Y-%m-%d')}_9to5.png"
         plt.savefig(output_file, dpi=150, bbox_inches='tight')
         print(f"✓ 图片已保存至: {output_file}")
 
@@ -189,7 +193,7 @@ def main():
     exchange = Exchange.SHFE  # 交易所
     start_date = "2026-03-02"  # 开始日期
     end_date = "2026-03-06"  # 结束日期
-    time_range_seconds = 60  # 绘制时间范围（秒）：30, 60, 120, 300 等
+    time_range_seconds = 120  # 绘制时间范围（秒）：30, 60, 120, 300 等
 
     print("=" * 60)
     print("DolphinDB Tick 数据获取与可视化")
