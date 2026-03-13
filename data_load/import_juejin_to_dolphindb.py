@@ -156,7 +156,16 @@ def main():
     pipeline = JuejinImportPipeline()
 
     # 先测试单个日期
-    result = pipeline.import_single_date("2026-01-21", chunk_size=10000)
+    result = pipeline.import_single_date("2026-01-19", chunk_size=10000)
+
+    if result["status"] == "success":
+        print("\n导入成功！")
+        print(f"  成功文件: {result['success_files']}/{result['total_files']}")
+        print(f"  总 tick 数: {result['total_ticks']}")
+    else:
+        print(f"\n导入失败: {result.get('reason', '未知错误')}")
+
+    result = pipeline.import_single_date("2026-01-20", chunk_size=10000)
 
     if result["status"] == "success":
         print("\n导入成功！")
