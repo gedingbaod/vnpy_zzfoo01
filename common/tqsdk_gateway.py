@@ -3,8 +3,6 @@ TQSDK行情API通用模块
 可用于各种gateway的TQSDK行情接入
 """
 
-from __future__ import annotations
-
 import sys
 from collections import defaultdict
 from threading import Thread

@@ -3,8 +3,6 @@
 包含收盘时间检查、强制平仓等风险控制功能
 """
 
-# from __future__ import annotations
-
 import threading
 from datetime import datetime, timedelta, time
 from threading import Thread
