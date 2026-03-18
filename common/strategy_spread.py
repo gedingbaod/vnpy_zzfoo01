@@ -425,7 +425,8 @@ class SpreadTradingStrategy(BaseStrategy):
 
                 # 重新赋值
                 self.current_spread_indicator = (mean, std, upper_bound, lower_bound, quote_space_spread, final_limit)
-                self.gateway.write_log(f"---klines时间不一致，near_k：{near_kline_time}, far_k：{far_kline_time}\n---使用历史数据计算完成，{self.current_spread_indicator}")
+                self.gateway.write_log(f"---klines时间不一致，near_k：{near_kline_time}, far_k：{far_kline_time}\n"
+                                       f"---使用历史数据计算完成，{self.current_spread_indicator}")
                 return self.current_spread_indicator
             else:
                 # 数据不存在，返回空
@@ -578,7 +579,7 @@ class SpreadTradingStrategy(BaseStrategy):
         # 如果实际开仓差价开mean上，甚至小于mean，这个成本可以保证不亏。
         # 这里只有滑点和手续费，不考虑利润，能平就行
         # close_dynamic_spread_cost = abs(self.slippage_points + self.commission_point) + abs(quote_space_spread)
-        close_dynamic_spread_cost = min_profit_points + quote_space_spread
+        close_dynamic_spread_cost = self.min_profit_points + quote_space_spread
         # 发送开仓时盘口的差价
         open_send_spread = self.spread_position["open_send_spread"]
         # 开仓成交实际的差价
@@ -587,7 +588,6 @@ class SpreadTradingStrategy(BaseStrategy):
         dynamic_close_short_spread = open_real_spread - close_dynamic_spread_cost
         # rm08：动态平多价差，覆盖成本，这个地方加法会使价差更高     实际开多价差 + 动态平仓成本
         dynamic_close_long_spread = open_real_spread + close_dynamic_spread_cost
-
 
         # ====================  盘口计算价差  ===================
         # 做空价差（可卖出价差）= 近月买价 - 远月卖价

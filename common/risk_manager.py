@@ -79,7 +79,7 @@ class RiskManager:
             self.active: bool = True  # 风险管理线程是否激活
             # 用于打断wait()等待，使线程能快速退出
             self.interrupt_event = threading.Event()
-            self.strategy.gateway.event_engine.register(EVENT_PRINT_HISTORY, self.callback_priprint_history_position)
+            self.strategy.gateway.event_engine.register(EVENT_PRINT_HISTORY, self.callback_print_history_position)
 
     def start(self) -> None:
         """
@@ -207,18 +207,7 @@ class RiskManager:
     def _check_price_limit_rm02(self) -> bool:
         """
         检查是否接近涨跌停
-
-        Parameters
-        ----------
-        near_quote : Quote
-            近月合约行情
-        far_quote : Quote
-            远月合约行情
-
-        Returns
-        -------
-        bool
-            是否接近涨跌停（True表示停止交易）
+        Returns  bool  是否接近涨跌停（True表示停止交易）
         """
         try:
             near_quote = self.strategy.spread_quotes[0]
@@ -257,7 +246,7 @@ class RiskManager:
             except Exception as e:
                 self.strategy.gateway.write_log(f"批量保存持仓记录到 MongoDB 失败: {str(e)}")
 
-    def callback_priprint_history_position(self, event: Event):
+    def callback_print_history_position(self, event: Event):
         self.print_history_position()
 
     def print_history_position(self) -> None:
