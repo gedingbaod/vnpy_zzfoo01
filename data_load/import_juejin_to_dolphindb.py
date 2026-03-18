@@ -16,6 +16,7 @@ data_load_dir = Path(__file__).parent
 sys.path.insert(0, str(data_load_dir))
 
 import logging
+from datetime import datetime, timedelta
 from unrar_juejin_data import JuejinDataExtractor
 from import_juejin_csv_to_dolphindb import import_directory
 
@@ -32,7 +33,7 @@ class JuejinImportPipeline:
 
     def __init__(
         self,
-        source_dir: str = r"G:\掘金数据\2026",
+        source_dir: str = r"G:\掘金数据\2025",
         target_dir: str = r"G:\掘金数据\load",
     ):
         """
@@ -151,28 +152,39 @@ class JuejinImportPipeline:
         return results
 
 
+def generate_date_list(start_date: str, end_date: str) -> list[str]:
+    """生成日期列表"""
+    start = datetime.strptime(start_date, "%Y-%m-%d")
+    end = datetime.strptime(end_date, "%Y-%m-%d")
+    date_list = []
+    current = start
+    while current <= end:
+        date_list.append(current.strftime("%Y-%m-%d"))
+        current += timedelta(days=1)
+    return date_list
+
+
 def main():
     """主函数"""
     pipeline = JuejinImportPipeline()
 
-    # 先测试单个日期
-    result = pipeline.import_single_date("2026-01-19", chunk_size=10000)
+    # 生成日期列表 (开始日期到结束日期)
+    date_list = generate_date_list("2025-12-26", "2025-12-31")
+    print(f"待导入日期: {len(date_list)} 天")
+    print(f"开始: {date_list[0]}, 结束: {date_list[-1]}")
 
-    if result["status"] == "success":
-        print("\n导入成功！")
-        print(f"  成功文件: {result['success_files']}/{result['total_files']}")
-        print(f"  总 tick 数: {result['total_ticks']}")
-    else:
-        print(f"\n导入失败: {result.get('reason', '未知错误')}")
+    for date_str in date_list:
+        # 先测试单个日期
+        result = pipeline.import_single_date(date_str, chunk_size=10000)
 
-    result = pipeline.import_single_date("2026-01-20", chunk_size=10000)
+        if result["status"] == "success":
+            print("\n导入成功！")
+            print(f"  成功文件: {result['success_files']}/{result['total_files']}")
+            print(f"  总 tick 数: {result['total_ticks']}")
+        else:
+            print(f"\n导入失败: {result.get('reason', '未知错误')}")
 
-    if result["status"] == "success":
-        print("\n导入成功！")
-        print(f"  成功文件: {result['success_files']}/{result['total_files']}")
-        print(f"  总 tick 数: {result['total_ticks']}")
-    else:
-        print(f"\n导入失败: {result.get('reason', '未知错误')}")
+
 
     # 确认后导入所有数据
     # confirm = input("\n是否继续导入所有数据? (y/n): ")
