@@ -18,15 +18,15 @@ import numpy as np
 import pandas as pd
 from tqsdk.objs import Quote
 
-from common.func_magic import print_msg_with_time_third, print_msg_with_time_fifth, print_msg_with_time_tenth
-from common.func_num import round_to_10, round_to_1, round_to_price_unit, FLOAT_FLOOR, FLOAT_CEIL
+from common.func_magic import print_msg_with_time_fifth, print_msg_with_time_tenth
+from common.func_num import round_to_price_unit, FLOAT_FLOOR, FLOAT_CEIL
 
 from common.time_delay import precise_time_trigger, check_market_opening_time_morning, \
     check_market_opening_time_night
 from common.vnpy_time import get_timestamp, get_now_str, datetime_format
 from vnpy.trader.constant import Direction, Offset, Exchange, OrderType, Status
 from vnpy.trader.event import EVENT_ORDER, EVENT_TRADE
-from vnpy.trader.object import OrderRequest, CancelRequest, SubscribeRequest, PositionData, OrderData, TradeData
+from vnpy.trader.object import OrderRequest, CancelRequest, SubscribeRequest, OrderData, TradeData
 from vnpy.event import Event
 
 if TYPE_CHECKING:
@@ -153,6 +153,10 @@ class BaseStrategy(ABC):
         self.gateway.write_log(msg)
         # print(msg)
 
+    @abstractmethod
+    def on_trade_status_update(self, trade):
+        pass
+
 
 class SpreadTradingStrategy(BaseStrategy):
     """
@@ -276,7 +280,7 @@ class SpreadTradingStrategy(BaseStrategy):
             return
         # 计算指标
         current_spread_indicator = self._calculate_klines_rm04(quotes_sub, klines_sub)
-        if current_spread_indicator == None:
+        if current_spread_indicator is None:
             return
         # 检查不可交易状态，由RiskManager控制
         if not self.is_tradable:
@@ -461,11 +465,11 @@ class SpreadTradingStrategy(BaseStrategy):
         """
 
         try:
-            # 计算价差
-            # real_short_spread: 做空价差（可卖出价差）= 近月买价 - 远月卖价
-            real_short_spread = near_quote.bid_price1 - far_quote.ask_price1
-            # real_long_spread: 做多价差（可买入价差）= 近月卖价 - 远月买价
-            real_long_spread = near_quote.ask_price1 - far_quote.bid_price1
+            # # 计算价差
+            # # real_short_spread: 做空价差（可卖出价差）= 近月买价 - 远月卖价
+            # real_short_spread = near_quote.bid_price1 - far_quote.ask_price1
+            # # real_long_spread: 做多价差（可买入价差）= 近月卖价 - 远月买价
+            # real_long_spread = near_quote.ask_price1 - far_quote.bid_price1
 
             # 如果已有持仓，不允许开新仓（因为transaction_volume=1，只允许1手持仓）
             # 如果未持仓才进入寻找开仓机会
@@ -504,10 +508,6 @@ class SpreadTradingStrategy(BaseStrategy):
 
         Parameters
         ----------
-        real_short_spread : float
-            可卖出价差（近月买价 - 远月卖价）
-        real_long_spread : float
-            可买入价差（近月卖价 - 远月买价）
         near_quote : Quote
             近月合约行情
         far_quote : Quote
@@ -580,8 +580,7 @@ class SpreadTradingStrategy(BaseStrategy):
         # 这里只有滑点和手续费，不考虑利润，能平就行
         # close_dynamic_spread_cost = abs(self.slippage_points + self.commission_point) + abs(quote_space_spread)
         close_dynamic_spread_cost = self.min_profit_points + quote_space_spread
-        # 发送开仓时盘口的差价
-        open_send_spread = self.spread_position["open_send_spread"]
+
         # 开仓成交实际的差价
         open_real_spread = self.spread_position["open_real_spread"]
         # rm08：动态平空价差，覆盖成本，这个地方减法会使价差更低     实际开空价差 - 动态平仓成本
@@ -675,8 +674,6 @@ class SpreadTradingStrategy(BaseStrategy):
             近月合约行情
         far_quote : Quote
             远月合约行情
-        spread : float
-            开仓时的价差
         """
         try:
             order_type, near_price, far_price = self.get_market_price(
@@ -759,8 +756,6 @@ class SpreadTradingStrategy(BaseStrategy):
             近月合约行情
         far_quote : Quote
             远月合约行情
-        spread : float
-            开仓时的价差
         """
         try:
             order_type, near_price, far_price = self.get_market_price(
@@ -865,8 +860,6 @@ class SpreadTradingStrategy(BaseStrategy):
             近月合约行情
         far_quote : Quote
             远月合约行情
-        spread : float
-            开仓时的价差
         """
         try:
             order_type, near_price, far_price = self.get_market_price(
@@ -982,8 +975,6 @@ class SpreadTradingStrategy(BaseStrategy):
             近月合约行情
         far_quote : Quote
             远月合约行情
-        spread : float
-            开仓时的价差
         """
         try:
             # 获取合约信息
@@ -1078,7 +1069,6 @@ class SpreadTradingStrategy(BaseStrategy):
         try:
             receive_time = get_now_str()
             vt_orderid: str = trade.vt_orderid
-            price: float = trade.price
 
             position = self.spread_position
             is_open_set = False
@@ -1103,16 +1093,15 @@ class SpreadTradingStrategy(BaseStrategy):
 
             # 如果现有仓位找不到，就到历史仓位的最后一条去找
             # 因为如果是平仓，数据可能就移动到历史仓位了
+            h_position = self.history_position[-1]
             if not is_open_set and not is_close_set and len(self.history_position) > 0:
-                h_position = self.history_position[-1]
+
                 if vt_orderid == h_position["near_open_order_id"]:
                     h_position["near_open_price"] = trade.price
                     h_position["near_open_servertime"] = trade.datetime
-                    is_h_open_set = True
                 elif vt_orderid == h_position["far_open_order_id"]:
                     h_position["far_open_price"] = trade.price
                     h_position["far_open_servertime"] = trade.datetime
-                    is_h_open_set = True
                 elif vt_orderid == h_position.get("near_close_order_id"):
                     h_position["near_close_price"] = trade.price
                     h_position["near_close_servertime"] = trade.datetime
@@ -1187,8 +1176,6 @@ class SpreadTradingStrategy(BaseStrategy):
         ----------
         order : OrderData
             订单ID（格式："gateway_name.orderid"）
-        status : Status
-            订单状态（SUBMITTING, NOTTRADED, PARTTRADED, ALLTRADED, CANCELLED, REJECTED）
         """
         try:
             # 获取当前时间作为收到消息时间
@@ -1580,7 +1567,7 @@ class SpreadTradingStrategy(BaseStrategy):
         self.clear_position_data()
         self.gateway.write_log(f"订单异常，请到历史仓位查询：{self.spread_position}")
 
-    def _send_emergency_close_order(self, leg: str, symbol: str, direction: Direction) -> str:
+    def _send_emergency_close_order(self, leg: str, symbol: str, direction: Direction) -> str | None:
         """
         发送紧急平仓订单
 
