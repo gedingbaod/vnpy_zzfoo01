@@ -909,8 +909,6 @@ class SpreadTradingStrategy(BaseStrategy):
 
                 # 加锁更新持仓状态
                 with self.position_lock:
-                    # 优先更改持仓状态
-                    # self.spread_position[POSITION_STATUS] = PositionStatus.OPENING
                     # 记录待成交订单（用于超时检查和状态跟踪）
                     self.pending_orders[order_id_near] = {
                         "symbol": self.near_symbol,
@@ -1529,7 +1527,7 @@ class SpreadTradingStrategy(BaseStrategy):
         Parameters
         ----------
         position_type : str
-            持仓类型（"short_spread" 或 "long_spread"）
+            持仓类型 "short_spread" 或 "long_spread"
         leg : str
             要平仓的腿（"near" 或 "far"）
         """
@@ -1567,7 +1565,7 @@ class SpreadTradingStrategy(BaseStrategy):
         self.clear_position_data()
         self.gateway.write_log(f"订单异常，请到历史仓位查询：{self.spread_position}")
 
-    def _send_emergency_close_order(self, leg: str, symbol: str, direction: Direction) -> str | None:
+    def _send_emergency_close_order(self, leg: str, symbol: str, direction: Direction) -> str:
         """
         发送紧急平仓订单
 
