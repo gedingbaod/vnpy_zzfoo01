@@ -137,9 +137,9 @@ class RiskManager:
                 self.strategy.is_tradable = (not rt_closing_time) and (not rt_price_limit)
 
                 # 如果不可交易，做一次强制平仓
-                if not self.strategy.is_tradable:
-                    self.strategy.gateway.write_log("收盘前强制平仓")
-                    self.strategy.close_position(force=True)
+                # if not self.strategy.is_tradable:
+                #     self.strategy.gateway.write_log("收盘前强制平仓")
+                #     self.strategy.close_position(force=True)
 
                 self.save_history_to_mongodb()
 
