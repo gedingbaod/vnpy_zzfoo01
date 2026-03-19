@@ -1411,10 +1411,10 @@ class SpreadTradingStrategy(BaseStrategy):
             "near_close_price1": None,   # 近月平仓发送价格，平仓时填入
             "far_close_price1": None,    # 远月平仓发送价格，平仓时填入
 
-            "near_volume": 0,           # 近月开仓手数，开仓时填入
-            "near_yd_volume": 0,        # 新开仓都是今仓，昨仓为0
-            "far_volume": 0,             # 远月开仓手数，开仓时填入
-            "far_yd_volume": 0,          # 新开仓都是今仓，昨仓为0
+            "near_volume": None,           # 近月开仓手数，开仓时填入
+            "near_yd_volume": None,        # 新开仓都是今仓，昨仓为0
+            "far_volume": None,             # 远月开仓手数，开仓时填入
+            "far_yd_volume": None,          # 新开仓都是今仓，昨仓为0
 
             "open_send_spread": None,    # 开仓发送价差，由near_open_price1、far_open_price1计算得出
             "open_real_spread": None,    # 开仓成交价差，由near_open_price、far_open_price计算得出
@@ -1424,6 +1424,15 @@ class SpreadTradingStrategy(BaseStrategy):
             "far_open_price": None,      # 远月开仓实际成交价格，在on_trade_status_update中填入
             "near_close_price": None,    # 近月平仓实际成交价格，在on_trade_status_update中填入
             "far_close_price": None,     # 远月平仓实际成交价格，在on_trade_status_update中填入
+
+            "open_spread_indicator": None, # 开仓指标
+            "close_spread_indicator": None, # 平仓指标
+
+            "near_open_servertime": None,  # 近月开仓服务器时间
+            "far_open_servertime": None,   # 远月开仓服务器时间
+            "near_close_servertime": None, # 近月平仓服务器时间
+            "far_close_servertime": None,  # 近月平仓服务器时间
+
         })
 
     def on_order_exception(self, event: Event) -> None:

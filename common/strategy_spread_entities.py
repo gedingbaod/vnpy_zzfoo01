@@ -56,8 +56,8 @@ class SnSpreadStrategy(SpreadTradingStrategy):
         # 设置特定的策略参数
         self.transaction_volume = 1    # 交易手数
         self.order_timeout = 0.8       # 订单超时时间（秒）
-        self.min_profit_points = 200   # 基本利润（最小盈利）
-        self.slippage_points = 50 * 4  # 做一次差价就是4次下单，一次滑点设为50
+        self.min_profit_points = 300   # 基本利润（最小盈利）
+        self.slippage_points = 100 * 4  # 做一次差价就是4次下单，一次滑点设为50
         self.commission_point = 2      # 做一次差价开平的手续费成本,12，一跳10元
         self.price_tick_min = 10       # 一跳的最小变动价格
         self.open_delay_sec = 15       # 开仓状态延时秒数设置，减少行情波动影响
