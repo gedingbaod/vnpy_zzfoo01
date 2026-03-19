@@ -1089,6 +1089,10 @@ class SpreadTradingStrategy(BaseStrategy):
                 position["far_close_servertime"] = trade.datetime
                 is_close_set = True
 
+            if is_open_set and (position.get("near_open_price") is not None) \
+                    and (position.get("far_open_price") is not None):
+                position["open_real_spread"] = position["near_open_price"] - position["far_open_price"]
+
             # 如果现有仓位找不到，就到历史仓位的最后一条去找
             # 因为如果是平仓，数据可能就移动到历史仓位了
             if not is_open_set and not is_close_set and len(self.history_position) > 0:
@@ -1108,10 +1112,7 @@ class SpreadTradingStrategy(BaseStrategy):
                     h_position["far_close_servertime"] = trade.datetime
                     is_h_close_set = True
 
-            if is_open_set and (position.get("near_open_price") is not None) \
-                    and (position.get("far_open_price") is not None):
-                position["open_real_spread"] = position["near_open_price"] - position["far_open_price"]
-                # print(f'open_real_spread: {position["open_real_spread"]}')
+
 
             if is_close_set and (position.get("near_close_price") is not None) \
                     and (position.get("far_close_price") is not None):
@@ -1133,14 +1134,14 @@ class SpreadTradingStrategy(BaseStrategy):
                     and (h_position.get("far_close_price") is not None):
                 h_position["close_real_spread"] = h_position["near_close_price"] - h_position["far_close_price"]
                 # 计算实际利润
-                if position.get(SPREAD_POSITION_TYPE) == SPREAD_POSITION_TYPE_SHORT:
-                    position["real_profit"] = position.get("open_real_spread") - position.get("close_real_spread")
-                elif position.get(SPREAD_POSITION_TYPE) == SPREAD_POSITION_TYPE_LONG:
-                    position["real_profit"] = position.get("close_real_spread") - position.get("open_real_spread")
+                if h_position.get(SPREAD_POSITION_TYPE) == SPREAD_POSITION_TYPE_SHORT:
+                    h_position["real_profit"] = h_position.get("open_real_spread") - h_position.get("close_real_spread")
+                elif h_position.get(SPREAD_POSITION_TYPE) == SPREAD_POSITION_TYPE_LONG:
+                    h_position["real_profit"] = h_position.get("close_real_spread") - h_position.get("open_real_spread")
                 else:
                     position["real_profit"] = 0
-                self.gateway.write_log(f'open_real_spread: {position["open_real_spread"]}, '
-                     f'close_real_spread: {position["close_real_spread"]}, read_profit: {position["real_profit"]}')
+                self.gateway.write_log(f'open_real_spread: {h_position["open_real_spread"]}, '
+                     f'close_real_spread: {h_position["close_real_spread"]}, read_profit: {h_position["real_profit"]}')
 
             if not is_open_set and not is_close_set and not is_h_close_set:
                 self.gateway.write_log(f"交易结果中未找到对应订单ID: {vt_orderid} at {receive_time}")

@@ -256,7 +256,7 @@ class RiskManager:
         """
 
         # 先打印当前持仓现状
-        output_lines: list[str] = [f"\n========== 当前持仓快照 =========="]
+        output_lines: list[str] = [f"\n************** 当前持仓快照 ***************"]
         current_position = self.strategy.global_position[SPREAD_POSITION]
         if current_position is None:
             output_lines.append("    当前持仓记录为空")
@@ -268,15 +268,12 @@ class RiskManager:
         output_lines.append(f"========== 历史持仓记录 (共 {len(history)} 条) ==========")
         if not history:
             output_lines.append("    历史持仓记录为空")
-            output_lines.append("========== 历史持仓记录打印完成 ==========")
-            self.strategy.gateway.write_log("\n".join(output_lines))
-            return
+        else:
+            for idx, position in enumerate(history, 1):
+                output_lines.append(f"---------- 记录 {idx} ----------")
+                output_lines.extend(output_position(position))
 
-        for idx, position in enumerate(history, 1):
-            output_lines.append(f"---------- 记录 {idx} ----------")
-            output_lines.extend(output_position(position))
-
-        output_lines.append("========== 历史持仓记录打印完成 ==========")
+        output_lines.append("========== 历史持仓记录打印完成 ============")
 
         # 一次性输出
         self.strategy.gateway.write_log("\n".join(output_lines))
@@ -411,16 +408,9 @@ def output_position(position: dict, is_current = False) -> list[str]:
     if position.get("close_real_spread") is not None:
         output_lines.append(f"  实际平仓价差: {position.get('close_real_spread')}")
 
-    if not is_current:
-        if (position.get("open_real_spread") is not None) and (position.get("close_real_spread") is not None):
-            if position.get(SPREAD_POSITION_TYPE) == SPREAD_POSITION_TYPE_SHORT:
-                position["real_profit"] = position.get("open_real_spread") - position.get("close_real_spread")
-            elif position.get(SPREAD_POSITION_TYPE) == SPREAD_POSITION_TYPE_LONG:
-                position["real_profit"] = position.get("close_real_spread") - position.get("open_real_spread")
-            else:
-                position["real_profit"] = 0
-            output_lines.append(f"  实际利润: {position.get('real_profit')}")
-        pass
+    if not is_current and position.get("real_profit") is not None:
+        output_lines.append(f"  实际利润: {position.get('real_profit')}")
+
     return output_lines
 
 def str_indicators(spread_indicator: tuple) -> str:
