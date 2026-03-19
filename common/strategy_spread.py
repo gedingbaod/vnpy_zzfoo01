@@ -1091,9 +1091,8 @@ class SpreadTradingStrategy(BaseStrategy):
 
             # 如果现有仓位找不到，就到历史仓位的最后一条去找
             # 因为如果是平仓，数据可能就移动到历史仓位了
-            h_position = self.history_position[-1]
             if not is_open_set and not is_close_set and len(self.history_position) > 0:
-
+                h_position = self.history_position[-1]
                 if vt_orderid == h_position["near_open_order_id"]:
                     h_position["near_open_price"] = trade.price
                     h_position["near_open_servertime"] = trade.datetime
