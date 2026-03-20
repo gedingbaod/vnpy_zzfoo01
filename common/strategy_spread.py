@@ -530,7 +530,6 @@ class SpreadTradingStrategy(BaseStrategy):
         # 卖出近月合约，买入远月合约，预期价差会回归到中轨
         if real_short_spread > upper_bound:
             # 如果是在08:59:00到08:59:59之间，就做定时任务开仓
-            head_str = ""
             if check_market_opening_time_morning():
                 # self._spread_open_short_delay(near_quote,far_quote,"09:00:00.001000")
                 head_str = "============早盘延时做空开仓"
@@ -550,12 +549,11 @@ class SpreadTradingStrategy(BaseStrategy):
         # 做多价差：价差过低
         # 买入近月合约，卖出远月合约，预期价差会回归到中轨
         if real_long_spread < lower_bound:
-            head_str = ""
             if check_market_opening_time_morning():
-                self._spread_open_long_delay(near_quote,far_quote,"09:00:00.001000")
+                # self._spread_open_long_delay(near_quote,far_quote,"09:00:00.001000")
                 head_str = "============早盘延时做多开仓"
             elif check_market_opening_time_night():
-                self._spread_open_long_delay(near_quote,far_quote,"21:00:00.001000")
+                # self._spread_open_long_delay(near_quote,far_quote,"21:00:00.001000")
                 head_str = "============夜盘延时做多开仓"
             else:
                 self._spread_open_long(near_quote, far_quote)

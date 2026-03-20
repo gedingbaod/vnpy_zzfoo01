@@ -158,8 +158,17 @@ def my_callback(trigger_abs_ns: int, trigger_perf_ns: int, micro_str: str, ns_st
 # ==================== 测试示例 ====================
 if __name__ == "__main__":
     # 测试：指定触发时间（建议先改为当前时间+几秒，如 "16:30:00.000001"）
-    precise_time_trigger(
-        target_time_str="08:51:10.000001",  # 目标时间：9点整1微秒
-        callback=my_callback,
-        msg="纳秒级触发成功！（无datetime依赖）"
-    )
+    # precise_time_trigger(
+    #     target_time_str="08:51:10.000001",  # 目标时间：9点整1微秒
+    #     callback=my_callback,
+    #     msg="纳秒级触发成功！（无datetime依赖）"
+    # )
+
+
+    start = time.time()
+    for _ in range(10000):
+        check_market_opening_time_morning()
+        check_market_opening_time_night()
+    elapsed = time.time() - start
+
+    print(elapsed)
