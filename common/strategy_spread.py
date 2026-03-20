@@ -532,10 +532,10 @@ class SpreadTradingStrategy(BaseStrategy):
             # 如果是在08:59:00到08:59:59之间，就做定时任务开仓
             head_str = ""
             if check_market_opening_time_morning():
-                self._spread_open_short_delay(near_quote,far_quote,"09:00:00.001000")
+                # self._spread_open_short_delay(near_quote,far_quote,"09:00:00.001000")
                 head_str = "============早盘延时做空开仓"
             elif check_market_opening_time_night():
-                self._spread_open_short_delay(near_quote,far_quote,"21:00:00.001000")
+                # self._spread_open_short_delay(near_quote,far_quote,"21:00:00.001000")
                 head_str = "============夜盘延时做空开仓"
             else:
                 self._spread_open_short(near_quote, far_quote)
