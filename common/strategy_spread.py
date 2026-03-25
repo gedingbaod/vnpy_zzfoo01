@@ -24,6 +24,8 @@ from common.func_num import round_to_price_unit, FLOAT_FLOOR, FLOAT_CEIL
 from common.time_delay import precise_time_trigger, check_market_opening_time_morning, \
     check_market_opening_time_night
 from common.vnpy_time import get_timestamp, get_now_str, datetime_format
+from file_dir import CURRENT_POSITION, check_indicator
+from trader.utility import save_json, load_json
 from vnpy.trader.constant import Direction, Offset, Exchange, OrderType, Status
 from vnpy.trader.event import EVENT_ORDER, EVENT_TRADE
 from vnpy.trader.object import OrderRequest, CancelRequest, SubscribeRequest, OrderData, TradeData
@@ -43,6 +45,14 @@ EVENT_SEND_TEST_OPEN_LONG = 'eSendTestEventOpenLong'
 EVENT_SEND_TEST_CLOSE_LONG = 'eSendTestEventCloseLong'
 EVENT_SEND_TEST_TIMEOUT = 'eSendTestEventTimeout'
 EVENT_SEND_TEST_START = 'eSendTestEventAll'
+# 保存仓位
+SAVE_POSITION = "eSavePosition"
+# 加载仓位
+LOAD_POSITION = "eLoadPosition"
+
+CURRENT_POSITION_JSON = "current_position.json"
+PENDING_ORDERS_JSON = "pending_orders.json"
+
 # 空差持仓
 SPREAD_POSITION_TYPE_SHORT = "spread_short"
 # 多差持仓
@@ -51,9 +61,11 @@ SPREAD_POSITION_TYPE_LONG = "spread_long"
 SPREAD_POSITION_TYPE = "spread_type"
 # 跨期套利仓位
 SPREAD_POSITION = "spread_position"
-
 # 仓位状态
 POSITION_STATUS = "position_status"
+
+
+
 class PositionStatus(Enum):
     """
     仓位状态
@@ -232,6 +244,8 @@ class SpreadTradingStrategy(BaseStrategy):
         self.gateway.event_engine.register(EVENT_SEND_TEST_CLOSE_LONG, self.test_func_close_long)
         self.gateway.event_engine.register(EVENT_SEND_TEST_TIMEOUT, self.test_func_timeout)
         self.gateway.event_engine.register(EVENT_SEND_TEST_START, self.test_func_all_start)
+        self.gateway.event_engine.register(SAVE_POSITION, self.save_spread_position)
+        self.gateway.event_engine.register(LOAD_POSITION, self.load_spread_position)
 
     def subscribe_spread(self):
 
@@ -1744,6 +1758,19 @@ class SpreadTradingStrategy(BaseStrategy):
 
 
         self.gateway.write_log('---------------------完整测试任务结束-----------------------')
+
+    def save_spread_position(self, event: Event):
+        self.gateway.write_log('---------------------进入保存仓位-----------------------')
+        save_json(CURRENT_POSITION_JSON, self.spread_position)
+        save_json(PENDING_ORDERS_JSON, self.pending_orders)
+        self.gateway.write_log('---------------------保存仓位完成-----------------------')
+
+    def load_spread_position(self, event: Event):
+        self.gateway.write_log('---------------------进入保存仓位-----------------------')
+        self.spread_position: dict = load_json(CURRENT_POSITION)
+        check_indicator(self.spread_position)
+        self.pending_orders: dict = load_json(PENDING_ORDERS_JSON)
+        self.gateway.write_log('---------------------保存仓位完成-----------------------')
 
 if __name__ == '__main__':
     print(PositionStatus.CLOSED.value)

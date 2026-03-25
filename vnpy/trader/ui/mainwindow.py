@@ -151,7 +151,18 @@ class MainWindow(QtWidgets.QMainWindow):
             partial(self.open_widget, ContractManager, "contract"),
             True
         )
-
+        self.add_action(
+            help_menu,
+            _("保存仓位"),
+            get_icon_path(__file__, "email.ico"),
+            self.save_current_position
+        )
+        self.add_action(
+            help_menu,
+            _("读取仓位"),
+            get_icon_path(__file__, "email.ico"),
+            self.load_current_position
+        )
         self.add_action(
             help_menu,
             _("还原窗口"),
@@ -419,4 +430,18 @@ class MainWindow(QtWidgets.QMainWindow):
         发送测试信号
         """
         event: Event = Event('ePrintHistory')
+        self.event_engine.put(event)
+
+    def save_current_position(self) -> None:
+        """
+        发送测试信号
+        """
+        event: Event = Event('eSavePosition')
+        self.event_engine.put(event)
+
+    def load_current_position(self) -> None:
+        """
+        发送测试信号
+        """
+        event: Event = Event('eLoadPosition')
         self.event_engine.put(event)
