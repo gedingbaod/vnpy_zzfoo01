@@ -5,9 +5,6 @@
     "log.level": 10,
     "log.console": true,
     "log.file": true,
-    "spread.near_symbol": "ni2604",
-    "spread.far_symbol": "ni2605",
-    "spread.mode": "test",
     "email.server": "smtp.qq.com",
     "email.port": 465,
     "email.username": "",
@@ -23,5 +20,8 @@
     "database.host": "192.168.31.28",
     "database.port": 8848,
     "database.user": "admin",
-    "database.password": "123456"
+    "database.password": "123456",
+    "spread.near_symbol": "sn2605",
+    "spread.far_symbol": "sn2606",
+    "spread.mode": "real"
 }
