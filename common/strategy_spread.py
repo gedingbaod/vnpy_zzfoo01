@@ -24,8 +24,7 @@ from common.func_num import round_to_price_unit, FLOAT_FLOOR, FLOAT_CEIL
 from common.time_delay import precise_time_trigger, check_market_opening_time_morning, \
     check_market_opening_time_night
 from common.vnpy_time import get_timestamp, get_now_str, datetime_format
-from file_dir import CURRENT_POSITION, check_indicator
-from trader.utility import save_json, load_json
+from file_dir import save_dict_to_json, load_dict_from_json
 from vnpy.trader.constant import Direction, Offset, Exchange, OrderType, Status
 from vnpy.trader.event import EVENT_ORDER, EVENT_TRADE
 from vnpy.trader.object import OrderRequest, CancelRequest, SubscribeRequest, OrderData, TradeData
@@ -168,6 +167,31 @@ class BaseStrategy(ABC):
     @abstractmethod
     def on_trade_status_update(self, trade):
         pass
+
+
+def convert_position(dict_data: dict) -> None:
+    # 核心逻辑：遍历key，转换_indicator结尾的value为元组
+    for key, value in dict_data.items():
+        # if key.endswith("_indicator"):
+        #     # 确保值是可迭代类型，转换为元组（空值则转为空元组）
+        #     if value is None:
+        #         dict_data[key] = None
+        #     elif isinstance(value, (list, tuple)):
+        #         dict_data[key] = tuple(value)
+        #     # elif isinstance((value, str)):
+        #
+        #     else:
+        #         # 非可迭代类型（如单个值），转为单元素元组
+        #         dict_data[key] = (value,)
+        if key.endswith("_status") and key != "position_status":
+            # 确保值是可迭代类型，转换为元组（空值则转为空元组）
+            if value is None:
+                dict_data[key] = None
+            else:
+                dict_data[key] =  Status(value)
+
+        if key == "position_status":
+            dict_data[key] =  PositionStatus(value)
 
 
 class SpreadTradingStrategy(BaseStrategy):
@@ -1086,19 +1110,19 @@ class SpreadTradingStrategy(BaseStrategy):
             is_h_close_set = False
             if vt_orderid == position["near_open_order_id"]:
                 position["near_open_price"] = trade.price
-                position["near_open_servertime"] = trade.datetime
+                position["near_open_servertime"] = str(trade.datetime)
                 is_open_set = True
             elif vt_orderid == position["far_open_order_id"]:
                 position["far_open_price"] = trade.price
-                position["far_open_servertime"] = trade.datetime
+                position["far_open_servertime"] = str(trade.datetime)
                 is_open_set = True
             elif vt_orderid == position["near_close_order_id"]:
                 position["near_close_price"] = trade.price
-                position["near_close_servertime"] = trade.datetime
+                position["near_close_servertime"] = str(trade.datetime)
                 is_close_set = True
             elif vt_orderid == position["far_close_order_id"]:
                 position["far_close_price"] = trade.price
-                position["far_close_servertime"] = trade.datetime
+                position["far_close_servertime"] = str(trade.datetime)
                 is_close_set = True
 
             if is_open_set and (position.get("near_open_price") is not None) \
@@ -1151,9 +1175,9 @@ class SpreadTradingStrategy(BaseStrategy):
                 elif h_position.get(SPREAD_POSITION_TYPE) == SPREAD_POSITION_TYPE_LONG:
                     h_position["real_profit"] = h_position.get("close_real_spread") - h_position.get("open_real_spread")
                 else:
-                    position["real_profit"] = 0
+                    h_position["real_profit"] = 0
                 self.gateway.write_log(f'open_real_spread: {h_position["open_real_spread"]}, '
-                     f'close_real_spread: {h_position["close_real_spread"]}, read_profit: {h_position["real_profit"]}')
+                     f'close_real_spread: {h_position["close_real_spread"]}, real_profit: {h_position["real_profit"]}')
 
             if not is_open_set and not is_close_set and not is_h_close_set:
                 self.gateway.write_log(f"交易结果中未找到对应订单ID: {vt_orderid} at {receive_time}")
@@ -1761,16 +1785,20 @@ class SpreadTradingStrategy(BaseStrategy):
 
     def save_spread_position(self, event: Event):
         self.gateway.write_log('---------------------进入保存仓位-----------------------')
-        save_json(CURRENT_POSITION_JSON, self.spread_position)
-        save_json(PENDING_ORDERS_JSON, self.pending_orders)
+        with self.position_lock:
+            save_dict_to_json(self.spread_position, CURRENT_POSITION_JSON)
+            save_dict_to_json(self.pending_orders, PENDING_ORDERS_JSON)
         self.gateway.write_log('---------------------保存仓位完成-----------------------')
 
     def load_spread_position(self, event: Event):
-        self.gateway.write_log('---------------------进入保存仓位-----------------------')
-        self.spread_position: dict = load_json(CURRENT_POSITION)
-        check_indicator(self.spread_position)
-        self.pending_orders: dict = load_json(PENDING_ORDERS_JSON)
-        self.gateway.write_log('---------------------保存仓位完成-----------------------')
+        self.gateway.write_log('---------------------进入读取仓位-----------------------')
+        with self.position_lock:
+            self.spread_position: dict = load_dict_from_json(CURRENT_POSITION_JSON)
+            convert_position(self.spread_position)
+            self.global_position[SPREAD_POSITION] = self.spread_position
+            self.pending_orders: dict = load_dict_from_json(PENDING_ORDERS_JSON)
+        self.gateway.write_log('---------------------读取仓位完成-----------------------')
+
 
 if __name__ == '__main__':
     print(PositionStatus.CLOSED.value)
