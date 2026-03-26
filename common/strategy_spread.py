@@ -1783,14 +1783,14 @@ class SpreadTradingStrategy(BaseStrategy):
 
         self.gateway.write_log('---------------------完整测试任务结束-----------------------')
 
-    def save_spread_position(self, event: Event):
+    def save_spread_position(self, event: Event = None):
         self.gateway.write_log('---------------------进入保存仓位-----------------------')
         with self.position_lock:
             save_dict_to_json(self.spread_position, CURRENT_POSITION_JSON)
             save_dict_to_json(self.pending_orders, PENDING_ORDERS_JSON)
         self.gateway.write_log('---------------------保存仓位完成-----------------------')
 
-    def load_spread_position(self, event: Event):
+    def load_spread_position(self, event: Event = None):
         self.gateway.write_log('---------------------进入读取仓位-----------------------')
         with self.position_lock:
             self.spread_position: dict = load_dict_from_json(CURRENT_POSITION_JSON)
