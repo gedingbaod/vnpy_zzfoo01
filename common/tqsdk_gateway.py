@@ -370,19 +370,11 @@ class TqSdkMdApi:
         except Exception as e:
             self.gateway.write_log(f"TQSDK行情数据转换异常 [{symbol}]：{str(e)}")
 
-
-    # def on_order_status_update(self, vt_orderid: str, status: Status) -> None:
-    #     """
-    #     订单状态更新回调（从TdApi调用）
-    #
-    #     将订单状态更新转发给策略处理
-    #     """
-    #     # 转发给策略处理
-    #     self.spread_strategy.on_order_status_update(vt_orderid, status)
-
     def close(self) -> None:
         """关闭连接"""
         self.active = False
+
+        self.spread_strategy.save_spread_position()
 
         # 等待线程结束
         if self.thread and self.thread.is_alive():
@@ -407,158 +399,6 @@ class TqSdkMdApi:
         print("TQSDK行情连接已关闭")
 
         self.risk_manager.stop()
-
-    # ==================== 测试相关方法 ====================
-    # def _order_ag2604(self, symbol: str, quote: Quote) -> None:
-    #     """测试ag2604下单功能"""
-    #     # 只在ag2604上操作，且只下单一次
-    #     if symbol != "ag2604" or self.order_placed:
-    #         return
-    #
-    #     # 标记已下单，避免重复下单
-    #     self.order_placed = True
-    #
-    #     try:
-    #         # 获取合约信息
-    #         contract: ContractData | None = self.gateway.symbol_contract_map_tqsdk.get(symbol, None)
-    #         if not contract:
-    #             self.gateway.write_log(f"未找到合约{symbol}的合约信息")
-    #             return
-    #
-    #         # 获取当前价格
-    #         current_price = quote.last_price
-    #         if current_price <= 0:
-    #             self.gateway.write_log(f"获取{symbol}当前价格失败")
-    #             return
-    #
-    #         self.gateway.write_log(f"开始测试下单 {symbol}，当前价格: {current_price}")
-    #
-    #         # 下单1：买单（开仓）
-    #         req_buy: OrderRequest = OrderRequest(
-    #             symbol=symbol,
-    #             exchange=contract.exchange,
-    #             direction=Direction.LONG,
-    #             type=OrderType.MARKET,
-    #             volume=1,
-    #             price=0,  # 市价单价格设为0
-    #             offset=Offset.OPEN,
-    #             reference="test_buy"
-    #         )
-    #         order_id_buy: str = self.gateway.send_order(req_buy)
-    #
-    #         if order_id_buy:
-    #             self.order_ids.append(order_id_buy)
-    #             self.gateway.write_log(f"买单已发送: {order_id_buy}")
-    #         else:
-    #             self.gateway.write_log("买单发送失败")
-    #             return
-    #
-    #         # 下单2：卖单（开仓）
-    #         req_sell: OrderRequest = OrderRequest(
-    #             symbol=symbol,
-    #             exchange=contract.exchange,
-    #             direction=Direction.SHORT,
-    #             type=OrderType.MARKET,
-    #             volume=1,
-    #             price=0,  # 市价单价格设为0
-    #             offset=Offset.OPEN,
-    #             reference="test_sell"
-    #         )
-    #         order_id_sell: str = self.gateway.send_order(req_sell)
-    #
-    #         if order_id_sell:
-    #             self.order_ids.append(order_id_sell)
-    #             self.gateway.write_log(f"卖单已发送: {order_id_sell}")
-    #         else:
-    #             self.gateway.write_log("卖单发送失败")
-    #             return
-    #
-    #         # 启动定时器，10秒后平仓
-    #         timer = Thread(target=self._delay_close_positions, args=(symbol, contract,))
-    #         timer.daemon = True
-    #         timer.start()
-    #         self.gateway.write_log("已启动10秒定时器，届时将自动平仓")
-    #
-    #     except Exception as e:
-    #         self.gateway.write_log(f"下单异常: {str(e)}")
-    #
-    # def _delay_close_positions(self, symbol: str, contract: ContractData) -> None:
-    #     """延迟平仓的线程函数"""
-    #     sleep(10)  # 等待10秒
-    #     self.gateway.write_log("10秒已到，开始平仓...")
-    #     self._close_ag2604_positions(symbol, contract)
-    #
-    # def _close_ag2604_positions(self, symbol: str, contract: ContractData) -> None:
-    #     """智能平仓ag2604的持仓，区分上期所今仓昨仓"""
-    #     try:
-    #         # 先查询持仓，获取持仓详情
-    #         self.gateway.query_position()
-    #
-    #         # 这里有update_pos_condition同步问题，所以加锁
-    #         with self.gateway.update_pos_condition:
-    #             self.gateway.update_pos_condition.wait()
-    #
-    #             # 获取多单持仓（Direction.LONG）
-    #             long_positions = [pos for pos in self.gateway.positions_for_tqsdk.values()
-    #                               if pos.symbol == symbol and pos.direction == Direction.LONG and pos.volume > 0]
-    #
-    #             # 获取空单持仓（Direction.SHORT）
-    #             short_positions = [pos for pos in self.gateway.positions_for_tqsdk.values()
-    #                                if pos.symbol == symbol and pos.direction == Direction.SHORT and pos.volume > 0]
-    #             # 临时变量，用完即刻清空
-    #             self.gateway.positions_for_tqsdk.clear()
-    #
-    #         # 平多单
-    #         for pos in long_positions:
-    #             close_volume = pos.volume
-    #             if close_volume <= 0:
-    #                 continue
-    #
-    #             # 判断平仓offset：上期所需要区分今昨仓
-    #             if contract.exchange in [Exchange.SHFE, Exchange.INE]:
-    #                 # 如果有昨仓，先平昨仓；剩下的平今仓
-    #                 if pos.yd_volume > 0:
-    #                     close_yd_volume = min(pos.yd_volume, close_volume)
-    #                     self._send_close_order(symbol, contract, Direction.SHORT,
-    #                                           close_yd_volume, Offset.CLOSEYESTERDAY)
-    #                     close_volume -= close_yd_volume
-    #
-    #                 if close_volume > 0:
-    #                     self._send_close_order(symbol, contract, Direction.SHORT,
-    #                                           close_volume, Offset.CLOSETODAY)
-    #             else:
-    #                 # 非上期所，直接平仓
-    #                 self._send_close_order(symbol, contract, Direction.SHORT,
-    #                                       close_volume, Offset.CLOSE)
-    #
-    #         # 平空单
-    #         for pos in short_positions:
-    #             close_volume = pos.volume
-    #             if close_volume <= 0:
-    #                 continue
-    #
-    #             # 判断平仓offset：上期所需要区分今昨仓
-    #             if contract.exchange in [Exchange.SHFE, Exchange.INE]:
-    #                 # 如果有昨仓，先平昨仓；剩下的平今仓
-    #                 if pos.yd_volume > 0:
-    #                     close_yd_volume = min(pos.yd_volume, close_volume)
-    #                     self._send_close_order(symbol, contract, Direction.LONG,
-    #                                           close_yd_volume, Offset.CLOSEYESTERDAY)
-    #                     close_volume -= close_yd_volume
-    #
-    #                 if close_volume > 0:
-    #                     self._send_close_order(symbol, contract, Direction.LONG,
-    #                                           close_volume, Offset.CLOSETODAY)
-    #             else:
-    #                 # 非上期所，直接平仓
-    #                 self._send_close_order(symbol, contract, Direction.LONG,
-    #                                       close_volume, Offset.CLOSE)
-    #
-    #         # 清空订单记录
-    #         self.order_ids.clear()
-    #
-    #     except Exception as e:
-    #         self.gateway.write_log(f"平仓异常: {str(e)}")
 
     def _send_close_order(self, symbol: str, contract: ContractData,
                          direction: Direction, volume: int, offset: Offset) -> None:
