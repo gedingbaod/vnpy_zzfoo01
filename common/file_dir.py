@@ -101,7 +101,12 @@ def load_dict_from_json(file_path: str) -> dict:
 
     filepath: Path = get_file_path(file_path)
     if not os.path.exists(filepath):
-        raise FileNotFoundError(f"文件 {file_path} 不存在")
+        # with open(filepath, "w", encoding="utf-8") as f:
+        #     # indent=4 格式化输出，便于阅读
+        #     json.dump({}, f, ensure_ascii=False, indent=4, default=convert)
+        print(f"文件 {file_path} 不存在")
+        return None
+        # raise FileNotFoundError(f"文件 {file_path} 不存在")
 
     with open(filepath, "r", encoding="utf-8") as f:
         dict_data = json.load(f)

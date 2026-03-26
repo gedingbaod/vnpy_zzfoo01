@@ -113,6 +113,8 @@ class TqSdkMdApi:
         # 跨期套利策略（使用工厂函数创建）
         # 从 vt_setting.json 的 spread.near_symbol 和 spread.far_symbol 配置自动推断
         self.spread_strategy = self.create_spread_strategy(gateway)
+        # 启动自动读取仓位信息
+        #self.spread_strategy.load_spread_position()
 
         # 创建风险管理器
         self.risk_manager = RiskManager(strategy=self.spread_strategy)
@@ -374,6 +376,7 @@ class TqSdkMdApi:
         """关闭连接"""
         self.active = False
 
+        # 关闭时保存当前仓位
         self.spread_strategy.save_spread_position()
 
         # 等待线程结束

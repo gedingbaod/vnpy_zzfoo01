@@ -257,6 +257,7 @@ class SpreadTradingStrategy(BaseStrategy):
         # 清空仓位数据，也就是初始化
         self.clear_position_data()
         self.spread_position[POSITION_STATUS] = PositionStatus.CLOSED
+        self.load_spread_position()
 
     def init_Event(self) -> None:
         """注册回调事件"""
@@ -1793,10 +1794,17 @@ class SpreadTradingStrategy(BaseStrategy):
     def load_spread_position(self, event: Event = None):
         self.gateway.write_log('---------------------进入读取仓位-----------------------')
         with self.position_lock:
-            self.spread_position: dict = load_dict_from_json(CURRENT_POSITION_JSON)
-            convert_position(self.spread_position)
-            self.global_position[SPREAD_POSITION] = self.spread_position
-            self.pending_orders: dict = load_dict_from_json(PENDING_ORDERS_JSON)
+            position_dict: dict = load_dict_from_json(CURRENT_POSITION_JSON)
+            if position_dict is not None:
+                self.spread_position = position_dict
+                convert_position(self.spread_position)
+                self.global_position[SPREAD_POSITION] = self.spread_position
+
+            pending_orders_dict: dict = load_dict_from_json(PENDING_ORDERS_JSON)
+            if pending_orders_dict is not None:
+                self.pending_orders = pending_orders_dict
+        self.gateway.write_log(f'{position_dict}')
+        self.gateway.write_log(f'{pending_orders_dict}')
         self.gateway.write_log('---------------------读取仓位完成-----------------------')
 
 
