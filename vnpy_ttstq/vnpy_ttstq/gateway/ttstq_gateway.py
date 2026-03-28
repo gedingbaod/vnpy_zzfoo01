@@ -6,7 +6,7 @@ from typing import Any, Union
 # from vnpy.trader.gateway import BaseGateway
 from common.gateway_tq import BaseGatewayTq, MARKET_SOURCE_TQSDK, MARKET_SOURCE_TTS
 from common.strategy_spread import EVENT_ERROR_ORDER
-from common.vnpy_time import get_now, get_now_str
+from common.vnpy_time import get_now_str
 from common.tqsdk_gateway import TqSdkMdApi  # 从common导入TQSDK行情API
 from vnpy.event.engine import EventEngine
 from pathlib import Path
