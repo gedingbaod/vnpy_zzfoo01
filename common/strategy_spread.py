@@ -25,6 +25,7 @@ from common.time_delay import precise_time_trigger, check_market_opening_time_mo
     check_market_opening_time_night
 from common.vnpy_time import get_timestamp, get_now_str, datetime_format
 from file_dir import save_dict_to_json, load_dict_from_json
+from time_check import check_trade_time
 from vnpy.trader.constant import Direction, Offset, Exchange, OrderType, Status
 from vnpy.trader.event import EVENT_ORDER, EVENT_TRADE
 from vnpy.trader.object import OrderRequest, CancelRequest, SubscribeRequest, OrderData, TradeData
@@ -169,29 +170,6 @@ class BaseStrategy(ABC):
         pass
 
 
-def convert_position(dict_data: dict) -> None:
-    # 核心逻辑：遍历key，转换_indicator结尾的value为元组
-    for key, value in dict_data.items():
-        # if key.endswith("_indicator"):
-        #     # 确保值是可迭代类型，转换为元组（空值则转为空元组）
-        #     if value is None:
-        #         dict_data[key] = None
-        #     elif isinstance(value, (list, tuple)):
-        #         dict_data[key] = tuple(value)
-        #     # elif isinstance((value, str)):
-        #
-        #     else:
-        #         # 非可迭代类型（如单个值），转为单元素元组
-        #         dict_data[key] = (value,)
-        if key.endswith("_status") and key != "position_status":
-            # 确保值是可迭代类型，转换为元组（空值则转为空元组）
-            if value is None:
-                dict_data[key] = None
-            else:
-                dict_data[key] =  Status(value)
-
-        if key == "position_status":
-            dict_data[key] =  PositionStatus(value)
 
 
 class SpreadTradingStrategy(BaseStrategy):
@@ -676,6 +654,42 @@ class SpreadTradingStrategy(BaseStrategy):
             #     self.gateway.write_log(f"做多价差止损: {quote_real_short_spread} < {open_send_spread} - {std * 3}，平仓 动态滑点{quote_space_spread}")
             #     self._spread_close_long(near_quote, far_quote)
             #     return
+
+    def convert_position(self, dict_data: dict) -> None:
+        # 核心逻辑：遍历key，转换_indicator结尾的value为元组
+        for key, value in dict_data.items():
+            # if key.endswith("_indicator"):
+            #     # 确保值是可迭代类型，转换为元组（空值则转为空元组）
+            #     if value is None:
+            #         dict_data[key] = None
+            #     elif isinstance(value, (list, tuple)):
+            #         dict_data[key] = tuple(value)
+            #     # elif isinstance((value, str)):
+            #
+            #     else:
+            #         # 非可迭代类型（如单个值），转为单元素元组
+            #         dict_data[key] = (value,)
+            if key.endswith("_status") and key != POSITION_STATUS:
+                # 确保值是可迭代类型，转换为元组（空值则转为空元组）
+                if value is None:
+                    dict_data[key] = None
+                else:
+                    dict_data[key] = Status(value)
+
+            if key == POSITION_STATUS:
+                dict_data[key] = PositionStatus(value)
+                if dict_data.get("near_yd_volume") is not None and dict_data.get("near_yd_volume") != 0:
+                    continue
+                elif dict_data[key] == PositionStatus.OPENED:
+                    now_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    trade_time_str = dict_data["near_open_servertime"]
+                    if trade_time_str is not None:
+                        yd_volume = check_trade_time(now_time, trade_time_str, self.transaction_volume)
+                        dict_data["near_yd_volume"] = yd_volume
+                        dict_data["far_yd_volume"] = yd_volume
+        # 仓位赋值
+        self.spread_position = dict_data
+        self.global_position[SPREAD_POSITION] = self.spread_position
 
     def get_market_offset(self):
         near_volume = self.spread_position.get("near_yd_volume")
@@ -1812,9 +1826,9 @@ class SpreadTradingStrategy(BaseStrategy):
         with self.position_lock:
             position_dict: dict = load_dict_from_json(CURRENT_POSITION_JSON)
             if position_dict is not None:
-                self.spread_position = position_dict
-                convert_position(self.spread_position)
-                self.global_position[SPREAD_POSITION] = self.spread_position
+
+                self.convert_position(position_dict)
+
 
             pending_orders_dict: dict = load_dict_from_json(PENDING_ORDERS_JSON)
             if pending_orders_dict is not None:
