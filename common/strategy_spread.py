@@ -677,6 +677,19 @@ class SpreadTradingStrategy(BaseStrategy):
             #     self._spread_close_long(near_quote, far_quote)
             #     return
 
+    def get_market_offset(self):
+        near_volume = self.spread_position.get("near_yd_volume")
+        far_volume = self.spread_position.get("far_yd_volume")
+        near_offset = Offset.CLOSETODAY
+        far_offset = Offset.CLOSETODAY
+        if near_volume is not None:
+            if near_volume > 0:
+                near_offset = Offset.CLOSEYESTERDAY
+        if far_volume is not None:
+            if far_volume > 0:
+                far_offset = Offset.CLOSEYESTERDAY
+        return near_offset, far_offset
+
     def get_market_price(self, near_quote: Quote, far_quote: Quote, exchange: Exchange, position_type) -> tuple[
         Literal[OrderType.LIMIT, OrderType.MARKET], float, float]:
         # 两家上海的交易所不支持市价指令，使用涨跌停价回撤10%作为市价
@@ -716,6 +729,7 @@ class SpreadTradingStrategy(BaseStrategy):
             order_type, near_price, far_price = self.get_market_price(
                 near_quote, far_quote, self.exchange, SPREAD_POSITION_TYPE_LONG)
 
+            near_offset, far_offset = self.get_market_offset()
             # 平近月空单
             req_near = OrderRequest(
                 symbol=self.near_symbol,
@@ -724,7 +738,7 @@ class SpreadTradingStrategy(BaseStrategy):
                 type=order_type,
                 volume=self.transaction_volume,
                 price=near_price,
-                offset=Offset.CLOSETODAY,
+                offset=near_offset,
                 reference=f"spread_close_near_{self.near_symbol}"
             )
             near_close_order_id = self.gateway.send_order(req_near)
@@ -737,7 +751,7 @@ class SpreadTradingStrategy(BaseStrategy):
                 type=order_type,
                 volume=self.transaction_volume,
                 price=far_price,
-                offset=Offset.CLOSETODAY,
+                offset=far_offset,
                 reference=f"spread_close_far_{self.far_symbol}"
             )
             far_close_order_id = self.gateway.send_order(req_far)
@@ -751,14 +765,14 @@ class SpreadTradingStrategy(BaseStrategy):
                     self.pending_orders[near_close_order_id] = {
                         "symbol": self.near_symbol,
                         "direction": Direction.LONG.value,
-                        "offset": Offset.CLOSETODAY.value,
+                        "offset": near_offset.value,
                         "create_time": create_time,
                         "pair_order_id": far_close_order_id  # 配对订单ID
                     }
                     self.pending_orders[far_close_order_id] = {
                         "symbol": self.far_symbol,
                         "direction": Direction.SHORT.value,
-                        "offset": Offset.CLOSETODAY.value,
+                        "offset": far_offset.value,
                         "create_time": create_time,
                         "pair_order_id": near_close_order_id  # 配对订单ID
                     }
@@ -798,6 +812,8 @@ class SpreadTradingStrategy(BaseStrategy):
             order_type, near_price, far_price = self.get_market_price(
                 near_quote, far_quote, self.exchange, SPREAD_POSITION_TYPE_SHORT)
 
+            near_offset, far_offset = self.get_market_offset()
+
             # 平近月空单
             req_near = OrderRequest(
                 symbol=self.near_symbol,
@@ -806,7 +822,7 @@ class SpreadTradingStrategy(BaseStrategy):
                 type=order_type,
                 volume=self.transaction_volume,
                 price=near_price,
-                offset=Offset.CLOSETODAY,
+                offset=near_offset,
                 reference=f"spread_close_near_{self.near_symbol}"
             )
             near_close_order_id = self.gateway.send_order(req_near)
@@ -819,7 +835,7 @@ class SpreadTradingStrategy(BaseStrategy):
                 type=order_type,
                 volume=self.transaction_volume,
                 price=far_price,
-                offset=Offset.CLOSETODAY,
+                offset=far_offset,
                 reference=f"spread_close_far_{self.far_symbol}"
             )
             far_close_order_id = self.gateway.send_order(req_far)
@@ -834,14 +850,14 @@ class SpreadTradingStrategy(BaseStrategy):
                     self.pending_orders[near_close_order_id] = {
                         "symbol": self.near_symbol,
                         "direction": Direction.SHORT.value,
-                        "offset": Offset.CLOSETODAY.value,
+                        "offset": near_offset.value,
                         "create_time": create_time,
                         "pair_order_id": far_close_order_id  # 配对订单ID
                     }
                     self.pending_orders[far_close_order_id] = {
                         "symbol": self.far_symbol,
                         "direction": Direction.LONG.value,
-                        "offset": Offset.CLOSETODAY.value,
+                        "offset": far_offset.value,
                         "create_time": create_time,
                         "pair_order_id": near_close_order_id  # 配对订单ID
                     }
