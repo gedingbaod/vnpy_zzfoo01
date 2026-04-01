@@ -26,7 +26,7 @@ from .widget import (
     ContractManager,
     TradingWidget,
     AboutDialog,
-    GlobalDialog
+    GlobalDialog, TestDialog
 )
 from ..engine import MainEngine, BaseApp
 from ..utility import get_icon_path, TRADER_DIR
@@ -204,6 +204,12 @@ class MainWindow(QtWidgets.QMainWindow):
             _("整体测试"),
             get_icon_path(__file__, "email.ico"),
             self.send_test_event_start
+        )
+        self.add_action(
+            help_menu,
+            _("仿真申报"),
+            get_icon_path(__file__, "about.ico"),
+            partial(self.open_widget, TestDialog, "about"),
         )
         self.add_action(
             help_menu,

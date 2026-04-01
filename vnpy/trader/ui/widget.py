@@ -1231,6 +1231,41 @@ class AboutDialog(QtWidgets.QDialog):
         vbox.addWidget(label)
         self.setLayout(vbox)
 
+class TestDialog(QtWidgets.QDialog):
+    """
+    Information about the trading platform.
+    """
+
+    def __init__(self, main_engine: MainEngine, event_engine: EventEngine) -> None:
+        """"""
+        super().__init__()
+
+        self.main_engine: MainEngine = main_engine
+        self.event_engine: EventEngine = event_engine
+
+        self.init_ui()
+
+    def init_ui(self) -> None:
+        """"""
+        self.setWindowTitle(_("差价缺口报单限制"))
+
+        from ... import __version__ as vnpy_version
+
+
+        text: str = f"""
+            IC2609：买卖差价缺口大于2，
+            
+            限制最大交易手数：2
+            """
+
+        label: QtWidgets.QLabel = QtWidgets.QLabel()
+        label.setText(text)
+        label.setMinimumWidth(500)
+
+        vbox: QtWidgets.QVBoxLayout = QtWidgets.QVBoxLayout()
+        vbox.addWidget(label)
+        self.setLayout(vbox)
+
 
 class GlobalDialog(QtWidgets.QDialog):
     """
