@@ -86,3 +86,10 @@ lab/
 /vnpy_ttstq/vnpy_ttstq/api/meson-private/coredata.dat.prev
 /vnpy_ctptq/vnpy_ctptq/api/meson-private/coredata.dat.prev
 
+/vnpy_ctptq/vnpy_ctptq/api/compile_commands.json
+/vnpy_ctptq/vnpy_ctptq/api/build.ninja
+/vnpy_ctptq/vnpy_ctptq/api/meson-private/coredata.dat
+/vnpy_ctptq/vnpy_ctptq/api/meson-private/build.dat
+/vnpy_ctptq/vnpy_ctptq/api/meson-logs/meson-setup.txt
+/vnpy_ctptq/vnpy_ctptq/api/meson-logs/meson-log.txt
+/vnpy_ctptq/vnpy_ctptq/api/meson-private/pycompile.py
