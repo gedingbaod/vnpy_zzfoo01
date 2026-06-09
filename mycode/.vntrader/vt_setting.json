@@ -21,7 +21,7 @@
     "database.port": 8848,
     "database.user": "admin",
     "database.password": "123456",
-    "spread.near_symbol": "sn2605",
-    "spread.far_symbol": "sn2606",
+    "spread.near_symbol": "ni2607",
+    "spread.far_symbol": "ni2609",
     "spread.mode": "real"
 }
