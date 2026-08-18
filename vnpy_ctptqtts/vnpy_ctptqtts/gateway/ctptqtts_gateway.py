@@ -232,7 +232,9 @@ class CtptqttsGateway(BaseGatewayTq):
                     self.tq_md_api.subscribed.update(self.md_api.subscribed)
                     self.tq_md_api.connect()
         else:  # 默认使用TTS行情
-            self.md_api.connect(md_address, userid, password, brokerid)
+            # self.md_api.connect(md_address, userid, password, brokerid)
+            self.write_log("提示：本次将使用CTP行情源")
+            self.md_api.connect(md_address, userid, password, brokerid, production_mode)
 
         self.init_query()
 

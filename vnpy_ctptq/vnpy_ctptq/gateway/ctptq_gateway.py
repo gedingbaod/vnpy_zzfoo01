@@ -3,7 +3,7 @@ from datetime import datetime
 from time import sleep
 from pathlib import Path
 
-from common.vnpy_time import get_now
+from common.vnpy_time import get_now_str
 from vnpy.event import EventEngine, Event
 from vnpy.trader.constant import (
     Direction,
