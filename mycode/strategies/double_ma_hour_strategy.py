@@ -64,8 +64,9 @@ class DoubleMaHourStrategy(CtaTemplate):
         self.bg.update_tick(tick)
 
     def on_bar(self, bar: BarData) -> None:
-        """1分钟bar回调：合成器内部推进用，交易逻辑不写在这里"""
-        pass
+        """1分钟bar回调：喂给合成器，实时tick流和load_bar历史回补都经过这里"""
+        # 必须推进合成器，否则小时bar永远不会生成，ArrayManager无法inited
+        self.bg.update_bar(bar)
 
     def on_hour_bar(self, bar: BarData) -> None:
         """1小时bar回调：原双均线交易逻辑放这里"""
