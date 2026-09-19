@@ -37,6 +37,7 @@ pip install .
 
 ```
 pip uninstall vnpy_ctptqtts
+
 pip install -e . --no-build-isolation --config-settings=build-dir=.\vnpy_ctptest\api
 ```
 
