@@ -31,3 +31,10 @@ pip install vnpy_ctastrategy
 ```
 pip install .
 ```
+
+源码运行
+
+```
+pip uninstall vnpy_ctastrategy
+pip install -e .
+```

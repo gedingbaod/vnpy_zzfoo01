@@ -12,6 +12,9 @@ from vnpy_ctastrategy import (
 )
 from vnpy.trader.constant import Interval
 
+# ArrayManager的updateBar在数据满时，设置inited=True
+# 合成小时bar是靠BarGenerator，在分钟级别数据触发时on_bar中更新小时bar
+# 在BarGenerators设置interval=Interval.HOUR和on_window_bar=self.on_hour_bar,触发小时bar
 
 class DoubleMaHourStrategy(CtaTemplate):
     """1小时级别双均线策略（基于示例 DoubleMaStrategy 改造）"""
@@ -64,7 +67,8 @@ class DoubleMaHourStrategy(CtaTemplate):
         self.bg.update_tick(tick)
 
     def on_bar(self, bar: BarData) -> None:
-        """1分钟bar回调：喂给合成器，实时tick流和load_bar历史回补都经过这里"""
+        """1分钟bar回调：喂给合成器，load_bar历史回补经过这里"""
+        """实时tick流和会直接调用update_bar,不经过这里"""
         # 必须推进合成器，否则小时bar永远不会生成，ArrayManager无法inited
         self.bg.update_bar(bar)
 
