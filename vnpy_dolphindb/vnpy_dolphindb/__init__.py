@@ -22,9 +22,9 @@
 
 
 from .dolphindb_database import DolphindbDatabase as Database
+from .dolphindb_datafeed import DolphindbDatafeed as Datafeed
 
-
-__all__ = ["Database"]
+__all__ = ["Database", "Datafeed"]
 
 
 __version__ = "1.1.0"
