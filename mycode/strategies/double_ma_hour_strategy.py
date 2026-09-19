@@ -109,6 +109,17 @@ class DoubleMaHourStrategy(CtaTemplate):
                 self.sell(bar.close_price, 1)
                 self.short(bar.close_price, 1)
 
+        # 尾部日志：记录本根小时bar的行情、均线状态与持仓，便于复盘核对
+        # 持仓pos为下单前的即时值，成交后会在下一根bar的日志中体现
+        self.write_log(
+            f"[小时Bar] {bar.vt_symbol} {bar.datetime} "
+            f"O:{bar.open_price} H:{bar.high_price} "
+            f"L:{bar.low_price} C:{bar.close_price} V:{bar.volume} | "
+            f"快线({self.fast_window}): {self.fast_ma0:.2f}/{self.fast_ma1:.2f} "
+            f"慢线({self.slow_window}): {self.slow_ma0:.2f}/{self.slow_ma1:.2f} | "
+            f"金叉:{cross_over} 死叉:{cross_below} 当前持仓:{self.pos}"
+        )
+
         self.put_event()
 
     def on_order(self, order: OrderData) -> None:
