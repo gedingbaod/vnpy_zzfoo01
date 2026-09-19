@@ -32,3 +32,14 @@
 - **修复**：`pip install protobuf==3.20.3`。blackboxprotobuf 1.0.1 声明要 3.10.0（与 gm >=3.12.2 冲突），
   实测 3.20.3 下 import 正常。
 - **规则**：此环境禁止随意升级 protobuf；升级 gm SDK 前先确认其对 protobuf 的版本约束。
+
+## 2026-09-19 CTA 自定义策略目录机制（踩坑）
+
+- **TRADER_DIR 解析**（vnpy/trader/utility.py）：启动时 cwd 下存在 `.vntrader` 子目录 → TRADER_DIR = cwd（即 `mycode/`）；
+  否则 TRADER_DIR = `C:\Users\gedin`（用主目录那套 `.vntrader` 配置）。**本项目必须从 `mycode` 目录启动 run_ui.py**，
+  否则会静默切到另一套配置。
+- **策略扫描目录**：MainEngine 会 `os.chdir(TRADER_DIR)`（= mycode），CtaEngine 扫描 `cwd/strategies`
+  并用 `import_module("strategies.xxx")` 从 sys.path 导入。
+  → **自定义 CTA 策略文件放 `mycode/strategies/`**（不要放 `mycode/.vntrader/strategies/`，引擎不扫那里）。
+- 首个策略：`mycode/strategies/double_ma_hour_strategy.py`（DoubleMaHourStrategy，1小时双均线，
+  BarGenerator window=1 + Interval.HOUR，load_bar(20)）。

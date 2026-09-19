@@ -1,5 +1,14 @@
 {
-    "ru2701": {
+    "ru2701H": {
+        "class_name": "DoubleMaHourStrategy",
+        "vt_symbol": "ru2701.SHFE",
+        "setting": {
+            "class_name": "DoubleMaHourStrategy",
+            "fast_window": 3,
+            "slow_window": 11
+        }
+    },
+    "ru2701M": {
         "class_name": "DoubleMaStrategy",
         "vt_symbol": "ru2701.SHFE",
         "setting": {
