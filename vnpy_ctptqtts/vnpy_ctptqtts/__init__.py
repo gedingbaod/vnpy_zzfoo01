@@ -24,9 +24,9 @@
 from importlib import metadata
 
 from .gateway import CtptqttsGateway
+from .gateway import TqSdkMdApiOnly
 
-
-__all__ = ["CtptqttsGateway"]
+__all__ = ["CtptqttsGateway", "TqSdkMdApiOnly"]
 
 
 try:

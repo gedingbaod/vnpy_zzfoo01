@@ -182,6 +182,7 @@ python_files = [
   ['vnpy_ctptqtts/api/ctp_constant.py', 'vnpy_ctptqtts/api'],
   ['vnpy_ctptqtts/gateway/__init__.py', 'vnpy_ctptqtts/gateway'],
   ['vnpy_ctptqtts/gateway/ctptqtts_gateway.py', 'vnpy_ctptqtts/gateway'],
+  ['vnpy_ctptqtts/gateway/tqsdk_mdapi_only.py', 'vnpy_ctptqtts/gateway'],
 ]
 
 foreach file : python_files

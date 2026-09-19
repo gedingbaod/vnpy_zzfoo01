@@ -5,7 +5,7 @@ import json
 
 import numpy as np
 import pandas as pd
-from trader.utility import save_json, load_json, get_file_path
+from vnpy.trader.utility import save_json, load_json, get_file_path
 
 
 

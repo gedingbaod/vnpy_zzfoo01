@@ -5,7 +5,9 @@ from pathlib import Path
 
 from common.gateway_tq import MARKET_SOURCE_TTS, MARKET_SOURCE_TQSDK, BaseGatewayTq
 from common.strategy_spread import EVENT_ERROR_ORDER
-from common.tqsdk_gateway import TqSdkMdApi
+from common.tqsdk_gateway import TqSdkMdApi   # 这个是差分交易的API
+# from vnpy_ctptqtts.gateway.tqsdk_mdapi_only import TqSdkMdApiOnly   # 这个是纯行情的API
+from .tqsdk_mdapi_only import TqSdkMdApiOnly
 from vnpy.event import EventEngine, Event
 from vnpy.trader.constant import (
     Direction,
@@ -222,7 +224,8 @@ class CtptqttsGateway(BaseGatewayTq):
                 self.market_source = MARKET_SOURCE_TTS
                 self.md_api.connect(md_address, userid, password, brokerid)
             else:
-                self.tq_md_api = TqSdkMdApi(self)
+                # self.tq_md_api = TqSdkMdApi(self)
+                self.tq_md_api = TqSdkMdApiOnly(self)
                 # 连接之前，默认是TTS，tq_md_api.subscribed为空，但是会有订阅输入
                 # 所以在TQSDK连接时，把这部分订阅，加入到TQSDK的订阅里
                 # TQSDK会在连接后，把这部分订阅执行

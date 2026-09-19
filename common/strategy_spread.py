@@ -24,8 +24,8 @@ from common.func_num import round_to_price_unit, FLOAT_FLOOR, FLOAT_CEIL
 from common.time_delay import precise_time_trigger, check_market_opening_time_morning, \
     check_market_opening_time_night
 from common.vnpy_time import get_timestamp, get_now_str, datetime_format
-from file_dir import save_dict_to_json, load_dict_from_json
-from time_check import check_trade_time
+from common.file_dir import save_dict_to_json, load_dict_from_json
+from common.time_check import check_trade_time
 from vnpy.trader.constant import Direction, Offset, Exchange, OrderType, Status
 from vnpy.trader.event import EVENT_ORDER, EVENT_TRADE
 from vnpy.trader.object import OrderRequest, CancelRequest, SubscribeRequest, OrderData, TradeData
