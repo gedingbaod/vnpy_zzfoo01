@@ -1,10 +1,11 @@
 {
-    "agdouble": {
+    "ru2701": {
         "class_name": "DoubleMaStrategy",
-        "vt_symbol": "ag2604.SHFE",
+        "vt_symbol": "ru2701.SHFE",
         "setting": {
-            "fast_window": 5,
-            "slow_window": 10
+            "class_name": "DoubleMaStrategy",
+            "fast_window": 3,
+            "slow_window": 11
         }
     }
 }

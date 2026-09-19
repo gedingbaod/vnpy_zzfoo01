@@ -4,7 +4,7 @@ from vnpy.trader.engine import MainEngine
 from vnpy.trader.ui import MainWindow, create_qapp
 
 
-CONN='CTPTQTTS'
+CONN='TTS'
 # 这六个只能留一个，不然会报错
 if CONN == 'CTP':
     from vnpy_ctp import CtpGateway
@@ -38,7 +38,7 @@ else:
 
 
 # from vnpy_paperaccount import PaperAccountApp
-# from vnpy_ctastrategy import CtaStrategyApp
+from vnpy_ctastrategy import CtaStrategyApp
 # from vnpy_ctabacktester import CtaBacktesterApp
 # from vnpy_spreadtrading import SpreadTradingApp
 # from vnpy_algotrading import AlgoTradingApp
@@ -95,7 +95,7 @@ def main():
     # main_engine.add_gateway(TtsGateway)
 
     # main_engine.add_app(PaperAccountApp)
-    # main_engine.add_app(CtaStrategyApp)
+    main_engine.add_app(CtaStrategyApp)
     # main_engine.add_app(CtaBacktesterApp)
     # main_engine.add_app(SpreadTradingApp)
     # main_engine.add_app(AlgoTradingApp)
