@@ -36,6 +36,7 @@ pip install .
 如果需要以**开发模式**安装到当前Python环境，可以使用下述命令：
 
 ```
+pip uninstall vnpy_ctptqtts
 pip install -e . --no-build-isolation --config-settings=build-dir=.\vnpy_ctptest\api
 ```
 
